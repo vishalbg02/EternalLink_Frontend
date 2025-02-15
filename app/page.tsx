@@ -1,101 +1,260 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
+import { motion, useAnimation, AnimatePresence } from 'framer-motion'
+import { useInView } from 'react-intersection-observer'
+import { ArrowRight, Lock, Zap, Globe, Users, Smartphone, Brain } from 'lucide-react'
+
+const FeatureCard = ({ icon, title, description }) => (
+    <motion.div
+        className="bg-gray-800 p-6 rounded-lg shadow-lg transition-all duration-300 ease-in-out hover:scale-105"
+        whileHover={{ y: -5 }}
+    >
+        {icon}
+        <h3 className="text-xl font-semibold mb-2">{title}</h3>
+        <p className="text-gray-300">{description}</p>
+    </motion.div>
+)
+
+const TestimonialCard = ({ name, role, quote, image }) => (
+    <motion.div
+        className="bg-gray-800 p-6 rounded-lg shadow-lg"
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+    >
+        <p className="text-lg italic mb-4">"{quote}"</p>
+        <div className="flex items-center">
+            <Image
+                src={image}
+                alt={name}
+                width={40}
+                height={40}
+                className="w-10 h-10 rounded-full mr-4"
+            />
+            <div>
+                <p className="font-semibold">{name}</p>
+                <p className="text-sm text-gray-400">{role}</p>
+            </div>
+        </div>
+    </motion.div>
+)
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    const [currentFeature, setCurrentFeature] = useState(0)
+    const features = [
+        { icon: <Lock className="w-12 h-12 mb-4 text-blue-400" />, title: 'Quantum-Resistant Encryption', description: 'Future-proof your communications with our advanced encryption technology, ensuring your messages remain secure even in the face of quantum computing advancements.' },
+        { icon: <Zap className="w-12 h-12 mb-4 text-yellow-400" />, title: 'Lightning-Fast Messaging', description: 'Experience real-time messaging with unparalleled speed. Our optimized infrastructure ensures your messages are delivered instantly, no matter where you are in the world.' },
+        { icon: <Globe className="w-12 h-12 mb-4 text-green-400" />, title: 'Global Accessibility', description: 'Connect with anyone, anywhere in the world, securely and effortlessly. EternalLink breaks down communication barriers, bringing people closer together.' },
+        { icon: <Users className="w-12 h-12 mb-4 text-purple-400" />, title: 'Decentralized Network', description: 'Enjoy the benefits of a truly decentralized messaging platform. Your data isn\'t controlled by any single entity, ensuring maximum privacy and resistance to censorship.' },
+        { icon: <Smartphone className="w-12 h-12 mb-4 text-pink-400" />, title: 'AR Message Placement', description: 'Leave virtual messages in real-world locations with our cutting-edge AR technology. Create immersive experiences and discover messages in a whole new way.' },
+        { icon: <Brain className="w-12 h-12 mb-4 text-indigo-400" />, title: 'AI-Powered Assistance', description: 'Benefit from our intelligent AI assistant that helps you compose messages, provides context-aware suggestions, and enhances your overall communication experience.' },
+    ]
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setCurrentFeature((prev) => (prev + 1) % features.length)
+        }, 5000)
+        return () => clearInterval(interval)
+    }, [])
+
+    const controls = useAnimation()
+    const [ref, inView] = useInView()
+
+    useEffect(() => {
+        if (inView) {
+            controls.start('visible')
+        }
+    }, [controls, inView])
+
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+            {/* Header */}
+            <header className="w-full bg-gray-900/80 backdrop-blur-lg fixed top-0 z-10 border-b border-gray-800">
+                <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
+                    <Link href="/" className="text-2xl font-bold text-blue-400 hover:text-blue-300 transition-colors">
+                        EternalLink
+                    </Link>
+                    <div className="space-x-6">
+                        <Link href="/about" className="hover:text-blue-400 transition duration-300">About</Link>
+                        <Link href="/features" className="hover:text-blue-400 transition duration-300">Features</Link>
+                        <Link href="/contact" className="hover:text-blue-400 transition duration-300">Contact</Link>
+                    </div>
+                </nav>
+            </header>
+
+            <main className="flex flex-col items-center justify-center w-full flex-1 px-4 sm:px-20 text-center">
+                {/* Hero Section */}
+                <motion.div
+                    className="w-full max-w-4xl pt-32 md:pt-40"
+                    initial={{opacity: 0, y: -50}}
+                    animate={{opacity: 1, y: 0}}
+                    transition={{duration: 0.8, ease: 'easeOut'}}
+                >
+                    <h1 className="text-5xl sm:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-purple-600 drop-shadow-lg">
+                        Welcome to EternalLink
+                    </h1>
+                    <p className="text-xl sm:text-2xl mb-12 max-w-2xl mx-auto text-gray-200">
+                        Experience the future of secure, decentralized communication with cutting-edge AR capabilities
+                        and AI-powered assistance.
+                    </p>
+                </motion.div>
+
+                {/* CTA Buttons */}
+                <motion.div
+                    className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6 mb-20"
+                    initial={{opacity: 0, y: 20}}
+                    animate={{opacity: 1, y: 0}}
+                    transition={{delay: 0.4, duration: 0.5}}
+                >
+                    <Link href="/login"
+                          className="group bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-8 rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg hover:shadow-blue-500/25 flex items-center justify-center">
+                        Login
+                        <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform"/>
+                    </Link>
+                    <Link href="/signup"
+                          className="group bg-purple-500 hover:bg-purple-600 text-white font-bold py-4 px-8 rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg hover:shadow-purple-500/25 flex items-center justify-center">
+                        Sign Up
+                        <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform"/>
+                    </Link>
+                </motion.div>
+
+                {/* Features Section */}
+                <motion.div
+                    ref={ref}
+                    animate={controls}
+                    initial="hidden"
+                    variants={{
+                        visible: {opacity: 1, y: 0},
+                        hidden: {opacity: 0, y: 50}
+                    }}
+                    transition={{duration: 0.5, ease: 'easeOut'}}
+                    className="w-full max-w-6xl mb-20"
+                >
+                    <h2 className="text-3xl sm:text-4xl font-bold mb-12 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                        Why Choose EternalLink?
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 px-4">
+                        {features.map((feature, index) => (
+                            <FeatureCard key={index} {...feature} />
+                        ))}
+                    </div>
+                </motion.div>
+
+                {/* How It Works Section */}
+                <motion.div
+                    initial={{opacity: 0}}
+                    animate={{opacity: 1}}
+                    transition={{delay: 0.8, duration: 0.5}}
+                    className="w-full max-w-4xl mb-20"
+                >
+                    <h2 className="text-3xl sm:text-4xl font-bold mb-8 text-center">How It Works</h2>
+                    <div className="relative">
+                        <div className="absolute left-1/2 transform -translate-x-1/2 h-full w-1 bg-blue-500"></div>
+                        {[
+                            {
+                                title: "Create Your EternalLink",
+                                description: "Sign up and generate your unique, memorable identifier combining words and emojis."
+                            },
+                            {
+                                title: "Connect Securely",
+                                description: "Add friends using their EternalLinks and start messaging with quantum-resistant encryption."
+                            },
+                            {
+                                title: "Explore AR Messaging",
+                                description: "Leave virtual messages in real-world locations for friends to discover."
+                            },
+                            {
+                                title: "Leverage AI Assistance",
+                                description: "Get smart suggestions and writing help from our AI-powered assistant."
+                            }
+                        ].map((step, index) => (
+                            <motion.div
+                                key={index}
+                                className="relative mb-8 flex items-center"
+                                initial={{opacity: 0, x: index % 2 === 0 ? -50 : 50}}
+                                animate={{opacity: 1, x: 0}}
+                                transition={{delay: index * 0.2, duration: 0.5}}
+                            >
+                                <div className={`w-1/2 ${index % 2 === 0 ? 'pr-8 text-right' : 'pl-8'}`}>
+                                    <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
+                                    <p>{step.description}</p>
+                                </div>
+                                <div
+                                    className="absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+                                    {index + 1}
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </motion.div>
+
+                {/* Testimonials Section */}
+                <motion.div
+                    initial={{opacity: 0, y: 50}}
+                    animate={{opacity: 1, y: 0}}
+                    transition={{delay: 1, duration: 0.5}}
+                    className="w-full max-w-4xl mb-20"
+                >
+                    <h2 className="text-3xl sm:text-4xl font-bold mb-8 text-center">What Our Users Say</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <TestimonialCard
+                            name="Sudheer"
+                            role="Christite"
+                            quote="EternalLink's quantum-resistant encryption gives me peace of mind. It's the future of secure communication."
+                            image="/images/sudheer.png"
+                        />
+                        <TestimonialCard
+                            name="Sriniketh"
+                            role="Christite"
+                            quote="The AR messaging feature is a game-changer. I love leaving virtual notes for friends around the world!"
+                            image="/images/sriniketh.jpg"
+                        />
+                        <TestimonialCard
+                            name="Elwin Roy"
+                            role="Christite"
+                            quote="EternalLink's quantum-resistant encryption gives me peace of mind. It's the future of secure communication."
+                            image="/images/Elwin.jpg"
+                        />
+                        <TestimonialCard
+                            name="Ashik"
+                            role="Christite"
+                            quote="EternalLink's quantum-resistant encryption gives me peace of mind. It's the future of secure communication."
+                            image="/images/Ashik.jpg"
+                        />
+                    </div>
+                </motion.div>
+
+                {/* Final CTA Section */}
+                <motion.div
+                    initial={{opacity: 0}}
+                    animate={{opacity: 1}}
+                    transition={{delay: 1.2, duration: 0.5}}
+                    className="text-center mb-12"
+                >
+                    <h2 className="text-3xl sm:text-4xl font-bold mb-4">Ready to revolutionize your communication?</h2>
+                    <p className="text-xl mb-8">Join EternalLink today and experience the future of messaging.</p>
+                    <Link href="/signup"
+                          className="group bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg hover:shadow-green-500/25 inline-flex items-center text-lg">
+                        Get Started Now
+                        <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform"/>
+                    </Link>
+                </motion.div>
+            </main>
+
+            {/* Footer */}
+            <footer className="w-full bg-gray-900 py-8 border-t border-gradient-to-r from-blue-500/20 to-purple-500/20">
+                <div className="container mx-auto px-6 flex flex-col sm:flex-row justify-between items-center">
+                    <p className="text-gray-300 mb-4 sm:mb-0">&copy; 2024 EternalLink. All rights reserved.</p>
+                    <div className="flex space-x-6">
+                        <Link href="/privacy" className="text-gray-300 hover:text-blue-400 transition duration-300">Privacy Policy</Link>
+                        <Link href="/terms" className="text-gray-300 hover:text-blue-400 transition duration-300">Terms of Service</Link>
+                    </div>
+                </div>
+            </footer>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+    )
 }
+
