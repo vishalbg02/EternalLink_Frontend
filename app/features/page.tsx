@@ -38,7 +38,7 @@ const features = [
     {
         icon: <Users className="w-12 h-12 mb-4 text-purple-500" />,
         title: 'Decentralized Network',
-        description: 'Enjoy the benefits of a truly decentralized messaging platform. Your data isn't controlled by any single entity, ensuring maximum privacy and resistance to censorship.'
+        description: 'Enjoy the benefits of a truly decentralized messaging platform. Your data is not controlled by any single entity, ensuring maximum privacy and resistance to censorship.'
     },
     {
         icon: <Smartphone className="w-12 h-12 mb-4 text-pink-500" />,
