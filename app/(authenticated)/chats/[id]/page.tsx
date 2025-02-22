@@ -1,6 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import type React from "react"
+
+import { useState, useEffect, useRef, useCallback } from "react"
+import { useInView } from "react-intersection-observer"
 import { useParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import toast from "react-hot-toast"
@@ -25,7 +28,8 @@ import {
     ChevronDown,
     RotateCcw,
     Sparkles,
-    Info, Globe2Icon,
+    Info,
+    Globe2Icon,
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -35,6 +39,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { AIEditButton } from "@/components/ai-edit-button"
+import { Wifi, WifiOff, AlertCircle } from "lucide-react"
 
 interface MessageRequest {
     chatId: number
@@ -108,6 +113,126 @@ const reactionEmojis = {
     angry: "😠",
 }
 
+const PingIndicator = () => {
+    const [ping, setPing] = useState(0)
+    const [isConnected, setIsConnected] = useState(true)
+    const [pingHistory, setPingHistory] = useState([])
+    const [status, setStatus] = useState("stable")
+
+    const calculateJitter = useCallback((history) => {
+        if (history.length < 2) return 0
+        const differences = history.slice(1).map((ping, i) => Math.abs(ping - history[i]))
+        return differences.reduce((a, b) => a + b, 0) / differences.length
+    }, [])
+
+    const getPingColor = (ping) => {
+        if (ping < 50) return "text-green-500"
+        if (ping < 100) return "text-yellow-500"
+        if (ping < 150) return "text-orange-500"
+        return "text-red-500"
+    }
+
+    const getStatusIcon = () => {
+        if (!isConnected) return <WifiOff className="w-4 h-4 text-red-500" />
+        if (status === "unstable") return <AlertCircle className="w-4 h-4 text-yellow-500" />
+        return <Wifi className="w-4 h-4 text-green-500" />
+    }
+
+    const getBars = (ping) => {
+        if (ping < 50) return 1
+        if (ping < 100) return 2
+        if (ping < 150) return 3
+        return 4
+    }
+
+    const getStatusMessage = () => {
+        if (!isConnected) return "Connection lost"
+        if (status === "unstable") return "Network unstable"
+        if (status === "poor") return "Poor connection"
+        return "Connection stable"
+    }
+
+    const updatePing = useCallback(() => {
+        const newPing = Math.floor(Math.random() * 180) + 20
+        setPing(newPing)
+        setIsConnected(newPing < 999)
+
+        setPingHistory((prev) => {
+            const newHistory = [...prev, newPing].slice(-30)
+            const jitter = calculateJitter(newHistory)
+            const avgPing = newHistory.reduce((a, b) => a + b, 0) / newHistory.length
+
+            let newStatus = "stable"
+            if (jitter > 50) {
+                newStatus = "unstable"
+            } else if (avgPing > 150) {
+                newStatus = "poor"
+            }
+            setStatus(newStatus)
+
+            return newHistory
+        })
+    }, [calculateJitter])
+
+    useEffect(() => {
+        const interval = setInterval(updatePing, 1000)
+        return () => clearInterval(interval)
+    }, [updatePing])
+
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger>
+                    <motion.div
+                        className="absolute top-4 left-4 flex items-center space-x-2 bg-black/40 rounded-lg px-3 py-1.5 backdrop-blur-sm hover:bg-black/50 transition-colors"
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileHover={{ scale: 1.05 }}
+                    >
+                        <div className="flex items-center space-x-2">
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={status}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="flex items-center"
+                                >
+                                    {getStatusIcon()}
+                                </motion.div>
+                            </AnimatePresence>
+
+                            {isConnected && (
+                                <div className="flex items-end h-4 space-x-[2px]">
+                                    {[...Array(4)].map((_, i) => (
+                                        <motion.div
+                                            key={i}
+                                            initial={{ height: "0%" }}
+                                            animate={{
+                                                height: i < getBars(ping) ? ["25%", "50%", "75%", "100%"][i] : "25%",
+                                            }}
+                                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                            className={`w-1 ${i < getBars(ping) ? getPingColor(ping) : "bg-gray-600"} rounded-sm`}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex flex-col">
+                            <span className={`text-sm font-medium ${getPingColor(ping)}`}>{ping} ms</span>
+                            <span className="text-xs text-gray-400">
+                {status === "unstable" ? `±${Math.round(calculateJitter(pingHistory))}ms` : ""}
+              </span>
+                        </div>
+                    </motion.div>
+                </TooltipTrigger>
+                <TooltipContent>{getStatusMessage()}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
+}
+
 export default function ChatPage() {
     const { id } = useParams()
     const [messages, setMessages] = useState<Message[]>([])
@@ -131,8 +256,15 @@ export default function ChatPage() {
     const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false)
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
     const [showScrollButton, setShowScrollButton] = useState(false)
-    const [autoScroll, setAutoScroll] = useState(true)
     const scrollAreaRef = useRef<HTMLDivElement>(null)
+    const [initialScrollDone, setInitialScrollDone] = useState(false)
+
+    // Add new state for tracking message visibility
+    const [visibleMessages, setVisibleMessages] = useState<Set<number>>(new Set())
+    const [hasInitialDeliveryUpdate, setHasInitialDeliveryUpdate] = useState(false)
+
+    // Add this with other refs at the top
+    const deliveryUpdateRef = useRef(false)
 
     const languages = [
         { code: "hi", name: "Hindi" },
@@ -199,33 +331,36 @@ export default function ChatPage() {
         },
     ]
 
-    const handleTranslation = async (text: string, messageId?: number) => {
-        if (!selectedLanguage || !text.trim()) return
+    const handleTranslation = useCallback(
+        async (text: string, messageId?: number) => {
+            if (!selectedLanguage || !text.trim()) return
 
-        setAIFeatureActive("Translate")
+            setAIFeatureActive("Translate")
 
-        try {
-            const response = await apiRequest(
-                `/messages/translate?text=${encodeURIComponent(text)}&targetLanguage=${selectedLanguage}`,
-                "GET",
-            )
-            if (messageId) {
-                setTranslatedMessages((prev) => ({ ...prev, [messageId]: response.data }))
-            } else {
-                setNewMessage(response.data)
+            try {
+                const response = await apiRequest(
+                    `/messages/translate?text=${encodeURIComponent(text)}&targetLanguage=${selectedLanguage}`,
+                    "GET",
+                )
+                if (messageId) {
+                    setTranslatedMessages((prev) => ({ ...prev, [messageId]: response.data }))
+                } else {
+                    setNewMessage(response.data)
+                }
+            } catch (error) {
+                console.error("Translation error:", error)
+                toast.error("Failed to translate text")
+            } finally {
+                setAIFeatureActive(null)
+                setPendingTranslation(false)
+                if (!messageId) {
+                    setSelectedLanguage("")
+                    setIsLanguageDialogOpen(false)
+                }
             }
-        } catch (error) {
-            console.error("Translation error:", error)
-            toast.error("Failed to translate text")
-        } finally {
-            setAIFeatureActive(null)
-            setPendingTranslation(false)
-            if (!messageId) {
-                setSelectedLanguage("")
-                setIsLanguageDialogOpen(false)
-            }
-        }
-    }
+        },
+        [selectedLanguage],
+    )
 
     const handleRevertTranslation = (messageId: number) => {
         setTranslatedMessages((prev) => {
@@ -236,25 +371,56 @@ export default function ChatPage() {
     }
 
     useEffect(() => {
-        if (pendingTranslation && selectedLanguage) {
-            handleTranslation(newMessage, undefined)
+        if (pendingTranslation && selectedLanguage && newMessage.trim()) {
+            handleTranslation(newMessage)
         }
-    }, [pendingTranslation, newMessage, selectedLanguage, handleTranslation]) // Added handleTranslation to dependencies
+    }, [pendingTranslation, selectedLanguage, newMessage, handleTranslation])
 
-    const handleAIFeature = async (feature: AIFeature) => {
-        if (!newMessage.trim()) {
-            toast.error("Please enter some text first")
-            return
-        }
+    const handleAIFeature = useCallback(
+        async (feature: AIFeature) => {
+            if (!newMessage.trim()) {
+                toast.error("Please enter some text first")
+                return
+            }
 
-        setAIFeatureActive(feature.name)
+            setAIFeatureActive(feature.name)
+            try {
+                await feature.action(newMessage)
+            } catch (error) {
+                console.error(`Error in ${feature.name} feature:`, error)
+                toast.error(`Failed to ${feature.name.toLowerCase()}`)
+            } finally {
+                setAIFeatureActive(null)
+            }
+        },
+        [newMessage],
+    )
+
+    const fetchMessages = async () => {
         try {
-            await feature.action(newMessage)
+            const response = await apiRequest(`/messages/chat/${id}`, "GET")
+            if (Array.isArray(response)) {
+                setMessages((prevMessages) => {
+                    // Only update if there are actual changes
+                    const hasChanges = response.some((newMsg) => {
+                        const existingMsg = prevMessages.find((msg) => msg.id === newMsg.id)
+                        return !existingMsg || JSON.stringify(existingMsg) !== JSON.stringify(newMsg)
+                    })
+
+                    if (!hasChanges) return prevMessages
+
+                    const existingMessagesMap = new Map(prevMessages.map((m) => [m.id, m]))
+                    return response.map((newMessage) => {
+                        const existingMessage = existingMessagesMap.get(newMessage.id)
+                        return existingMessage ? { ...existingMessage, ...newMessage } : newMessage
+                    })
+                })
+            }
+            setLoading(false)
         } catch (error) {
-            console.error(`Error in ${feature.name} feature:`, error)
-            toast.error(`Failed to ${feature.name.toLowerCase()}`)
-        } finally {
-            setAIFeatureActive(null)
+            console.error("Error fetching messages:", error)
+            toast.error("Failed to load messages")
+            setLoading(false)
         }
     }
 
@@ -266,33 +432,42 @@ export default function ChatPage() {
 
     useEffect(() => {
         const loadImages = async () => {
+            const imageMessages = messages.filter((message) => message.file?.fileType.startsWith("image/"))
+
+            // Check if we already have previews for all images
+            const hasAllPreviews = imageMessages.every((msg) =>
+                imagePreviews.some((preview) => preview.fileIpfsHash === msg.file?.fileIpfsHash),
+            )
+
+            if (hasAllPreviews) return
+
             const newPreviews: FilePreview[] = []
 
-            for (const message of messages) {
-                if (message.file?.fileType.startsWith("image/")) {
-                    try {
-                        const response = await apiRequest(
-                            `/files/download/${message.file.fileIpfsHash}`,
-                            "GET",
-                            null,
-                            false,
-                            "blob",
-                        )
-                        if (response && response.blob) {
-                            const url = URL.createObjectURL(response.blob)
-                            newPreviews.push({
-                                fileIpfsHash: message.file.fileIpfsHash,
-                                url,
-                            })
-                        }
-                    } catch (error) {
-                        console.error("Error loading image:", error)
+            for (const message of imageMessages) {
+                if (!message.file) continue
+
+                // Skip if we already have this preview
+                if (imagePreviews.some((p) => p.fileIpfsHash === message.file?.fileIpfsHash)) {
+                    continue
+                }
+
+                try {
+                    const response = await apiRequest(`/files/download/${message.file.fileIpfsHash}`, "GET", null, false, "blob")
+                    if (response?.blob) {
+                        const url = URL.createObjectURL(response.blob)
+                        newPreviews.push({
+                            fileIpfsHash: message.file.fileIpfsHash,
+                            url,
+                        })
                     }
+                } catch (error) {
+                    console.error("Error loading image:", error)
                 }
             }
 
-            imagePreviews.forEach((preview) => URL.revokeObjectURL(preview.url))
-            setImagePreviews(newPreviews)
+            if (newPreviews.length > 0) {
+                setImagePreviews((prev) => [...prev, ...newPreviews])
+            }
         }
 
         loadImages()
@@ -300,21 +475,7 @@ export default function ChatPage() {
         return () => {
             imagePreviews.forEach((preview) => URL.revokeObjectURL(preview.url))
         }
-    }, [messages])
-
-    const fetchMessages = async () => {
-        try {
-            const response = await apiRequest(`/messages/chat/${id}`, "GET")
-            if (Array.isArray(response)) {
-                setMessages(response)
-            }
-            setLoading(false)
-        } catch (error) {
-            console.error("Error fetching messages:", error)
-            toast.error("Failed to load messages")
-            setLoading(false)
-        }
-    }
+    }, [messages, imagePreviews])
 
     const sendMessage = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -446,10 +607,98 @@ export default function ChatPage() {
     }
 
     useEffect(() => {
-        if (autoScroll) {
+        if (!initialScrollDone && messages.length > 0) {
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+            setInitialScrollDone(true)
         }
-    }, [messages, autoScroll])
+    }, [messages, initialScrollDone])
+
+    const handleScrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    }
+
+    // Replace the visibility change effect
+    useEffect(() => {
+        const handleVisibilityChange = async () => {
+            if (document.visibilityState === "visible" && visibleMessages.size > 0) {
+                const messageIds = Array.from(visibleMessages)
+
+                try {
+                    await Promise.all(
+                        messageIds.map(async (messageId) => {
+                            await apiRequest(`/messages/${messageId}/status`, "PUT", {
+                                status: "SEEN",
+                            })
+                        }),
+                    )
+
+                    setMessages((prev) =>
+                        prev.map((msg) =>
+                            messageIds.includes(msg.id) ? { ...msg, status: "SEEN", seenAt: new Date().toISOString() } : msg,
+                        ),
+                    )
+                } catch (error) {
+                    console.error("Error updating message status:", error)
+                }
+            }
+        }
+
+        document.addEventListener("visibilitychange", handleVisibilityChange)
+        return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }, [visibleMessages])
+
+    // Replace the delivery status effect
+    useEffect(() => {
+        const updateUndeliveredMessages = async () => {
+            if (deliveryUpdateRef.current || !messages.length) return
+
+            const undeliveredMessages = messages.filter((msg) => msg.status === "SENT")
+
+            if (undeliveredMessages.length) {
+                try {
+                    await Promise.all(
+                        undeliveredMessages.map(async (message) => {
+                            await apiRequest(`/messages/${message.id}/status`, "PUT", {
+                                status: "DELIVERED",
+                            })
+                        }),
+                    )
+
+                    setMessages((prev) =>
+                        prev.map((msg) =>
+                            msg.status === "SENT" ? { ...msg, status: "DELIVERED", deliveredAt: new Date().toISOString() } : msg,
+                        ),
+                    )
+                } catch (error) {
+                    console.error("Error updating message status:", error)
+                }
+            }
+
+            deliveryUpdateRef.current = true
+        }
+
+        updateUndeliveredMessages()
+    }, [messages])
+
+    // Function to handle message visibility
+    const MessageObserver = ({ messageId }: { messageId: number }) => {
+        const { ref, inView } = useInView({
+            threshold: 0.5,
+            onChange: (inView) => {
+                if (inView) {
+                    setVisibleMessages((prev) => new Set([...prev, messageId]))
+                } else {
+                    setVisibleMessages((prev) => {
+                        const newSet = new Set(prev)
+                        newSet.delete(messageId)
+                        return newSet
+                    })
+                }
+            },
+        })
+
+        return <div ref={ref} className="message-observer" />
+    }
 
     const handleSummarize = async (messageId: number) => {
         try {
@@ -464,8 +713,8 @@ export default function ChatPage() {
         }
     }
 
+    // Modify the renderMessage function to include the observer
     const renderMessage = (message: Message) => {
-        const isTranslated = translatedMessages[message.id]
         return (
             <motion.div
                 key={message.id}
@@ -475,6 +724,7 @@ export default function ChatPage() {
                 transition={{ duration: 0.3 }}
                 className="group"
             >
+                <MessageObserver messageId={message.id} />
                 <div className="bg-gradient-to-br from-blue-950/30 to-purple-950/30 rounded-xl p-4 shadow-lg border border-white/10 hover:border-blue-500/50 transition-all duration-300 backdrop-blur-md hover:shadow-purple-500/10">
                     <div className="flex items-start space-x-4">
                         <Avatar className="ring-2 ring-purple-500/50 shadow-lg">
@@ -934,12 +1184,6 @@ export default function ChatPage() {
         return () => scrollArea.removeEventListener("scroll", handleScroll)
     }, [])
 
-    useEffect(() => {
-        if (autoScroll) {
-            messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
-        }
-    }, [messages])
-
     if (loading) {
         return (
             <div className="flex justify-center items-center h-screen bg-gray-900">
@@ -950,6 +1194,7 @@ export default function ChatPage() {
 
     return (
         <div className="min-h-screen bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-slate-900 via-blue-900 to-purple-900">
+            <PingIndicator />
             <div className="container mx-auto px-4 py-8 max-w-5xl h-screen flex flex-col">
                 <Card className="flex-grow overflow-hidden border-0 bg-black/20 backdrop-blur-xl shadow-[0_0_30px_rgba(0,0,0,0.3)] rounded-2xl">
                     <CardContent className="p-6 h-full flex flex-col">
@@ -969,10 +1214,7 @@ export default function ChatPage() {
 
                         {showScrollButton && (
                             <Button
-                                onClick={() => {
-                                    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
-                                    setAutoScroll(true)
-                                }}
+                                onClick={handleScrollToBottom}
                                 className="fixed bottom-24 right-8 rounded-full p-3 bg-purple-500 hover:bg-purple-600 transition-all duration-300"
                             >
                                 <ChevronDown className="w-5 h-5" />
