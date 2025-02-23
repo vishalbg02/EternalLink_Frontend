@@ -10,7 +10,14 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { MessageSquare, Trash2, Users, ArrowLeft } from "lucide-react"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { MessageSquare, Trash2, Users, ArrowLeft, Clock } from "lucide-react"
 
 interface Chat {
     id: number
@@ -18,6 +25,7 @@ interface Chat {
     isGroupChat: boolean
     lastMessage?: string
     createdAt: string
+    defaultExpirationSeconds?: number // Add this to reflect the backend field
 }
 
 export default function ManageChats() {
@@ -43,18 +51,63 @@ export default function ManageChats() {
 
     const handleDeleteChat = async (chatId: number) => {
         try {
-            const response = await apiRequest(`/chats/${chatId}`, "DELETE");
+            const response = await apiRequest(`/chats/${chatId}`, "DELETE")
             if (response.success) {
-                setChats((prevChats) => prevChats.filter((chat) => chat.id !== chatId));
-                toast.success("Chat deleted successfully");
+                setChats((prevChats) => prevChats.filter((chat) => chat.id !== chatId))
+                toast.success("Chat deleted successfully")
             } else {
-                throw new Error(response.message || "Failed to delete chat");
+                throw new Error(response.message || "Failed to delete chat")
             }
         } catch (error) {
-            console.error("Error deleting chat:", error);
-            toast.error(error instanceof Error ? error.message : "Failed to delete chat. Please try again.");
+            console.error("Error deleting chat:", error)
+            toast.error(error instanceof Error ? error.message : "Failed to delete chat. Please try again.")
         }
-    };
+    }
+
+    const handleSetExpiration = async (chatId: number, value: string) => {
+        try {
+            let expirationSeconds: number | null = null
+            if (value !== "off") {
+                const [amount, unit] = value.split("-")
+                const numAmount = parseInt(amount)
+                switch (unit) {
+                    case "minutes":
+                        expirationSeconds = numAmount * 60
+                        break
+                    case "hours":
+                        expirationSeconds = numAmount * 60 * 60
+                        break
+                    case "days":
+                        expirationSeconds = numAmount * 24 * 60 * 60
+                        break
+                    default:
+                        throw new Error("Invalid time unit")
+                }
+            }
+
+            const response = await apiRequest(`/chats/${chatId}/expiration?expirationSeconds=${expirationSeconds || ''}`, "PUT")
+            if (response.success) {
+                setChats((prevChats) =>
+                    prevChats.map((chat) =>
+                        chat.id === chatId ? { ...chat, defaultExpirationSeconds: expirationSeconds } : chat
+                    )
+                )
+                toast.success(`Disappearing messages set to ${value === "off" ? "off" : value.replace("-", " ")}`)
+            } else {
+                throw new Error(response.message || "Failed to set expiration")
+            }
+        } catch (error) {
+            console.error("Error setting chat expiration:", error)
+            toast.error(error instanceof Error ? error.message : "Failed to set expiration. Please try again.")
+        }
+    }
+
+    const formatExpiration = (seconds?: number) => {
+        if (!seconds) return "Off"
+        if (seconds < 3600) return `${seconds / 60} minutes`
+        if (seconds < 86400) return `${seconds / 3600} hours`
+        return `${seconds / 86400} days`
+    }
 
     if (loading) {
         return (
@@ -151,9 +204,32 @@ export default function ManageChats() {
                                                             {new Date(chat.createdAt).toLocaleDateString()}
                             </span>
                                                     </div>
+                                                    {chat.defaultExpirationSeconds !== undefined && (
+                                                        <div className="flex items-center gap-1 text-sm text-gray-400">
+                                                            <Clock className="h-4 w-4" />
+                                                            <span>Disappears: {formatExpiration(chat.defaultExpirationSeconds)}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3">
+                                                <Select
+                                                    onValueChange={(value) => handleSetExpiration(chat.id, value)}
+                                                    defaultValue={chat.defaultExpirationSeconds ? `${chat.defaultExpirationSeconds / 60}-minutes` : "off"}
+                                                >
+                                                    <SelectTrigger className="w-[180px] bg-gray-600 border-gray-500">
+                                                        <SelectValue placeholder="Set disappearing messages" />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="bg-gray-700 text-white border-gray-600">
+                                                        <SelectItem value="off">Off</SelectItem>
+                                                        <SelectItem value="5-minutes">5 Minutes</SelectItem>
+                                                        <SelectItem value="30-minutes">30 Minutes</SelectItem>
+                                                        <SelectItem value="1-hours">1 Hour</SelectItem>
+                                                        <SelectItem value="6-hours">6 Hours</SelectItem>
+                                                        <SelectItem value="1-days">1 Day</SelectItem>
+                                                        <SelectItem value="7-days">7 Days</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
                                                 <Button
                                                     onClick={() => handleDeleteChat(chat.id)}
                                                     variant="ghost"
@@ -187,4 +263,3 @@ export default function ManageChats() {
         </motion.div>
     )
 }
-

@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useInView } from "react-intersection-observer"
 import { useParams } from "next/navigation"
@@ -11,25 +10,7 @@ import { apiRequest } from "@/utils/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
-    MapPin,
-    Send,
-    Paperclip,
-    Download,
-    Eye,
-    MessageSquare,
-    Zap,
-    Globe,
-    Shield,
-    FileText,
-    Brain,
-    CornerUpRight,
-    Smile,
-    X,
-    ChevronDown,
-    RotateCcw,
-    Sparkles,
-    Info,
-    Globe2Icon,
+    MapPin, Send, Paperclip, Download, Eye, MessageSquare, Zap, Globe, Shield, FileText, Brain, CornerUpRight, Smile, X, ChevronDown, RotateCcw, Sparkles, Info, Globe2Icon, Clock,
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -50,6 +31,8 @@ interface MessageRequest {
         altitude: number
     }
     replyToMessageId?: number
+    expirationSeconds?: number
+    isOneTimeView?: boolean
 }
 
 interface Message {
@@ -80,6 +63,8 @@ interface Message {
     status: MessageStatus
     deliveredAt?: string
     seenAt?: string
+    expiresAt?: string
+    isOneTimeView?: boolean
 }
 
 interface Reaction {
@@ -163,11 +148,8 @@ const PingIndicator = () => {
             const avgPing = newHistory.reduce((a, b) => a + b, 0) / newHistory.length
 
             let newStatus = "stable"
-            if (jitter > 50) {
-                newStatus = "unstable"
-            } else if (avgPing > 150) {
-                newStatus = "poor"
-            }
+            if (jitter > 50) newStatus = "unstable"
+            else if (avgPing > 150) newStatus = "poor"
             setStatus(newStatus)
 
             return newHistory
@@ -222,8 +204,8 @@ const PingIndicator = () => {
                         <div className="flex flex-col">
                             <span className={`text-sm font-medium ${getPingColor(ping)}`}>{ping} ms</span>
                             <span className="text-xs text-gray-400">
-                {status === "unstable" ? `±${Math.round(calculateJitter(pingHistory))}ms` : ""}
-              </span>
+                                {status === "unstable" ? `±${Math.round(calculateJitter(pingHistory))}ms` : ""}
+                            </span>
                         </div>
                     </motion.div>
                 </TooltipTrigger>
@@ -258,13 +240,13 @@ export default function ChatPage() {
     const [showScrollButton, setShowScrollButton] = useState(false)
     const scrollAreaRef = useRef<HTMLDivElement>(null)
     const [initialScrollDone, setInitialScrollDone] = useState(false)
-
-    // Add new state for tracking message visibility
     const [visibleMessages, setVisibleMessages] = useState<Set<number>>(new Set())
     const [hasInitialDeliveryUpdate, setHasInitialDeliveryUpdate] = useState(false)
-
-    // Add this with other refs at the top
     const deliveryUpdateRef = useRef(false)
+    const [expirationOption, setExpirationOption] = useState<string>("off")
+    const [isOneTimeView, setIsOneTimeView] = useState(false)
+    const [revealedOneTimeMessages, setRevealedOneTimeMessages] = useState<Set<number>>(new Set()) // New state for revealed one-time messages
+    const [chatExpiration, setChatExpiration] = useState<number | null>(null) // New state for chat-wide expiration
 
     const languages = [
         { code: "hi", name: "Hindi" },
@@ -401,7 +383,6 @@ export default function ChatPage() {
             const response = await apiRequest(`/messages/chat/${id}`, "GET")
             if (Array.isArray(response)) {
                 setMessages((prevMessages) => {
-                    // Only update if there are actual changes
                     const hasChanges = response.some((newMsg) => {
                         const existingMsg = prevMessages.find((msg) => msg.id === newMsg.id)
                         return !existingMsg || JSON.stringify(existingMsg) !== JSON.stringify(newMsg)
@@ -416,6 +397,12 @@ export default function ChatPage() {
                     })
                 })
             }
+
+            // Fetch chat details to get defaultExpirationSeconds
+            const chatResponse = await apiRequest(`/chats`, "GET")
+            const currentChat = chatResponse.find((chat: any) => chat.id === Number(id))
+            setChatExpiration(currentChat?.defaultExpirationSeconds || null)
+
             setLoading(false)
         } catch (error) {
             console.error("Error fetching messages:", error)
@@ -434,7 +421,6 @@ export default function ChatPage() {
         const loadImages = async () => {
             const imageMessages = messages.filter((message) => message.file?.fileType.startsWith("image/"))
 
-            // Check if we already have previews for all images
             const hasAllPreviews = imageMessages.every((msg) =>
                 imagePreviews.some((preview) => preview.fileIpfsHash === msg.file?.fileIpfsHash),
             )
@@ -444,12 +430,7 @@ export default function ChatPage() {
             const newPreviews: FilePreview[] = []
 
             for (const message of imageMessages) {
-                if (!message.file) continue
-
-                // Skip if we already have this preview
-                if (imagePreviews.some((p) => p.fileIpfsHash === message.file?.fileIpfsHash)) {
-                    continue
-                }
+                if (!message.file || imagePreviews.some((p) => p.fileIpfsHash === message.file.fileIpfsHash)) continue
 
                 try {
                     const response = await apiRequest(`/files/download/${message.file.fileIpfsHash}`, "GET", null, false, "blob")
@@ -501,6 +482,25 @@ export default function ChatPage() {
                 messageData.replyToMessageId = replyingTo.id
             }
 
+            if (expirationOption !== "off") {
+                const [amount, unit] = expirationOption.split("-")
+                const numAmount = parseInt(amount)
+                switch (unit) {
+                    case "minutes":
+                        messageData.expirationSeconds = numAmount * 60
+                        break
+                    case "hours":
+                        messageData.expirationSeconds = numAmount * 60 * 60
+                        break
+                    case "days":
+                        messageData.expirationSeconds = numAmount * 24 * 60 * 60
+                        break
+                }
+            }
+            if (isOneTimeView) {
+                messageData.isOneTimeView = true
+            }
+
             formData.append("message", JSON.stringify(messageData))
             if (file) {
                 formData.append("file", file)
@@ -515,6 +515,8 @@ export default function ChatPage() {
                 setIsARMessage(false)
                 setReplyingTo(null)
                 setTypingReply(false)
+                setExpirationOption("off")
+                setIsOneTimeView(false)
                 toast.success(response.message || "Message sent successfully")
             } else {
                 throw new Error(response.message || "Invalid response from server")
@@ -555,13 +557,13 @@ export default function ChatPage() {
                     >
                         {totalReactions > 0 ? (
                             <div className="flex items-center space-x-1">
-                <span className="text-sm">
-                  {message.reactions
-                      ?.sort((a, b) => b.count - a.count)
-                      .slice(0, 1)
-                      .map((r) => reactionEmojis[r.type as keyof typeof reactionEmojis])
-                      .join("")}
-                </span>
+                                <span className="text-sm">
+                                    {message.reactions
+                                        ?.sort((a, b) => b.count - a.count)
+                                        .slice(0, 1)
+                                        .map((r) => reactionEmojis[r.type as keyof typeof reactionEmojis])
+                                        .join("")}
+                                </span>
                                 {totalReactions > 1 && <span className="text-xs">{totalReactions}</span>}
                             </div>
                         ) : (
@@ -585,8 +587,8 @@ export default function ChatPage() {
                                     {emoji}
                                     {reaction && reaction.count > 1 && (
                                         <span className="absolute -top-1 -right-1 text-xs bg-gray-700 rounded-full px-1">
-                      {reaction.count}
-                    </span>
+                                            {reaction.count}
+                                        </span>
                                     )}
                                 </Button>
                             )
@@ -617,7 +619,6 @@ export default function ChatPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
     }
 
-    // Replace the visibility change effect
     useEffect(() => {
         const handleVisibilityChange = async () => {
             if (document.visibilityState === "visible" && visibleMessages.size > 0) {
@@ -647,7 +648,6 @@ export default function ChatPage() {
         return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
     }, [visibleMessages])
 
-    // Replace the delivery status effect
     useEffect(() => {
         const updateUndeliveredMessages = async () => {
             if (deliveryUpdateRef.current || !messages.length) return
@@ -680,7 +680,6 @@ export default function ChatPage() {
         updateUndeliveredMessages()
     }, [messages])
 
-    // Function to handle message visibility
     const MessageObserver = ({ messageId }: { messageId: number }) => {
         const { ref, inView } = useInView({
             threshold: 0.5,
@@ -713,8 +712,41 @@ export default function ChatPage() {
         }
     }
 
-    // Modify the renderMessage function to include the observer
+    const formatExpirationTime = (expiresAt?: string) => {
+        if (!expiresAt) return ""
+        const now = new Date()
+        const expiration = new Date(expiresAt)
+        const diffMs = expiration.getTime() - now.getTime()
+        if (diffMs <= 0) return "Expired"
+
+        const diffSeconds = Math.floor(diffMs / 1000)
+        if (diffSeconds < 60) return `${diffSeconds} seconds left`
+        const diffMinutes = Math.floor(diffSeconds / 60)
+        if (diffMinutes < 60) return `${diffMinutes} minutes left`
+        const diffHours = Math.floor(diffMinutes / 60)
+        if (diffHours < 24) return `${diffHours} hours left`
+        const diffDays = Math.floor(diffHours / 24)
+        return `${diffDays} days left`
+    }
+
+    const formatChatExpiration = (seconds: number) => {
+        if (seconds < 3600) return `${seconds / 60} minutes`
+        if (seconds < 86400) return `${seconds / 3600} hours`
+        return `${seconds / 86400} days`
+    }
+
+    const handleRevealOneTimeMessage = (messageId: number) => {
+        setRevealedOneTimeMessages((prev) => new Set([...prev, messageId]))
+    }
+
     const renderMessage = (message: Message) => {
+        const isExpired = message.expiresAt && new Date(message.expiresAt) <= new Date()
+        const isOneTimeViewed = message.isOneTimeView && message.seenAt
+
+        if (isExpired || isOneTimeViewed) return null
+
+        const isRevealed = revealedOneTimeMessages.has(message.id)
+
         return (
             <motion.div
                 key={message.id}
@@ -760,7 +792,21 @@ export default function ChatPage() {
                             </div>
                             {message.replyTo && renderRepliedMessage(message.replyTo)}
                             {!message.isEncrypted && message.content && (
-                                <p className="text-gray-100">{translatedMessages[message.id] || message.content}</p>
+                                message.isOneTimeView && !isRevealed ? (
+                                    <div className="flex items-center space-x-2">
+                                        <Eye className="w-4 h-4 text-gray-400" />
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleRevealOneTimeMessage(message.id)}
+                                            className="text-gray-400 hover:text-purple-400"
+                                        >
+                                            Reveal One-Time Message
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-100">{translatedMessages[message.id] || message.content}</p>
+                                )
                             )}
                             {message.isEncrypted && (
                                 <div className="flex items-center space-x-2 text-gray-400">
@@ -773,8 +819,16 @@ export default function ChatPage() {
                                 <div className="flex items-center space-x-2 text-purple-400 text-sm">
                                     <MapPin className="w-4 h-4" />
                                     <span>
-                    {message.arMessage.latitude.toFixed(6)},{message.arMessage.longitude.toFixed(6)}
-                  </span>
+                                        {message.arMessage.latitude.toFixed(6)},{message.arMessage.longitude.toFixed(6)}
+                                    </span>
+                                </div>
+                            )}
+                            {(message.expiresAt || message.isOneTimeView) && (
+                                <div className="flex items-center space-x-2 text-gray-400 text-sm">
+                                    <Clock className="w-4 h-4" />
+                                    <span>
+                                        {message.isOneTimeView ? "One-time view" : formatExpirationTime(message.expiresAt)}
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -851,7 +905,6 @@ export default function ChatPage() {
             case MessageStatus.DELIVERED:
                 return (
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="5 0 40 60" width="40" height="60">
-                        {/* Adjusted transform to center icon */}
                         <g transform="translate(20,30)">
                             <circle cx="10" cy="0" r="10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 3" />
                             <path d="M4 -4 L16 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -1177,7 +1230,6 @@ export default function ChatPage() {
             const { scrollTop, scrollHeight, clientHeight } = scrollArea
             const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
             setShowScrollButton(!isNearBottom)
-            // Remove auto-scroll setting here
         }
 
         scrollArea.addEventListener("scroll", handleScroll)
@@ -1197,6 +1249,16 @@ export default function ChatPage() {
             <PingIndicator />
             <div className="container mx-auto px-4 py-8 max-w-5xl h-screen flex flex-col">
                 <Card className="flex-grow overflow-hidden border-0 bg-black/20 backdrop-blur-xl shadow-[0_0_30px_rgba(0,0,0,0.3)] rounded-2xl">
+                    {chatExpiration && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-purple-500/20 text-purple-200 p-2 text-center text-sm rounded-t-2xl"
+                        >
+                            <Clock className="w-4 h-4 inline-block mr-2" />
+                            Disappearing messages turned on for {formatChatExpiration(chatExpiration)}
+                        </motion.div>
+                    )}
                     <CardContent className="p-6 h-full flex flex-col">
                         <ScrollArea className="flex-grow pr-4 mb-4" ref={scrollAreaRef}>
                             <AnimatePresence mode="popLayout" initial={false}>
@@ -1246,7 +1308,7 @@ export default function ChatPage() {
                                         value={newMessage}
                                         onChange={(e) => setNewMessage(e.target.value)}
                                         placeholder="Type your message..."
-                                        className="bg-gradient-to-br from-blue-950/50 to-purple-950/50 border-2 border-white/10 hover:border-blue-500/50 focus:border-purple-950/50 border-2 border-white/10 hover:border-blue-500/50 focus:border-purple-500/50 text-gray-100 resize-none min-h-[100px] rounded-xl transition-all duration-300 placeholder:text-gray-400"
+                                        className="bg-gradient-to-br from-blue-950/50 to-purple-950/50 border-2 border-white/10 hover:border-blue-500/50 focus:border-purple-950/50 text-gray-100 resize-none min-h-[100px] rounded-xl transition-all duration-300 placeholder:text-gray-400"
                                         maxLength={1000}
                                     />
                                     <div className="absolute right-3 bottom-3 px-2 py-1 text-xs text-gray-400 bg-black/20 rounded-md backdrop-blur-sm">
@@ -1317,6 +1379,37 @@ export default function ChatPage() {
                                                 <Paperclip className="w-4 h-4 mr-2" />
                                                 Attach File
                                             </Button>
+                                            <Select
+                                                value={expirationOption}
+                                                onValueChange={(value) => {
+                                                    setExpirationOption(value)
+                                                    setIsOneTimeView(false)
+                                                }}
+                                            >
+                                                <SelectTrigger className="bg-gray-600 border-gray-500 text-white">
+                                                    <SelectValue placeholder="Disappearing Message" />
+                                                </SelectTrigger>
+                                                <SelectContent className="bg-gray-700 text-white border-gray-600">
+                                                    <SelectItem value="off">Off</SelectItem>
+                                                    <SelectItem value="5-minutes">5 Minutes</SelectItem>
+                                                    <SelectItem value="30-minutes">30 Minutes</SelectItem>
+                                                    <SelectItem value="1-hours">1 Hour</SelectItem>
+                                                    <SelectItem value="6-hours">6 Hours</SelectItem>
+                                                    <SelectItem value="1-days">1 Day</SelectItem>
+                                                    <SelectItem value="7-days">7 Days</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <Button
+                                                onClick={() => {
+                                                    setIsOneTimeView(!isOneTimeView)
+                                                    setExpirationOption("off")
+                                                }}
+                                                variant={isOneTimeView ? "secondary" : "ghost"}
+                                                className="justify-start text-white"
+                                            >
+                                                <Eye className="w-4 h-4 mr-2" />
+                                                {isOneTimeView ? "Cancel One-Time View" : "One-Time View"}
+                                            </Button>
                                         </div>
                                     </PopoverContent>
                                 </Popover>
@@ -1339,8 +1432,20 @@ export default function ChatPage() {
                                     >
                                         <MapPin className="w-4 h-4 text-purple-400" />
                                         <span className="text-sm text-gray-300">
-                      Location: {arLocation.latitude.toFixed(6)}, {arLocation.longitude.toFixed(6)}
-                    </span>
+                                            Location: {arLocation.latitude.toFixed(6)}, {arLocation.longitude.toFixed(6)}
+                                        </span>
+                                    </motion.div>
+                                )}
+                                {(expirationOption !== "off" || isOneTimeView) && (
+                                    <motion.div
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        className="flex items-center space-x-2 bg-white/5 rounded-lg px-3 py-1"
+                                    >
+                                        <Clock className="w-4 h-4 text-purple-400" />
+                                        <span className="text-sm text-gray-300">
+                                            {isOneTimeView ? "One-Time View" : expirationOption.replace("-", " ")}
+                                        </span>
                                     </motion.div>
                                 )}
                                 <AIEditButton onEdit={handleAIEdit} />
@@ -1469,6 +1574,20 @@ export default function ChatPage() {
                                     </p>
                                 </div>
                             )}
+                            {selectedMessage.expiresAt && (
+                                <div className="flex items-center space-x-2">
+                                    <Clock className="w-5 h-5 text-gray-400" />
+                                    <p>
+                                        <strong>Expires at:</strong> {new Date(selectedMessage.expiresAt).toLocaleString()}
+                                    </p>
+                                </div>
+                            )}
+                            {selectedMessage.isOneTimeView && (
+                                <div className="flex items-center space-x-2">
+                                    <Eye className="w-5 h-5 text-gray-400" />
+                                    <p><strong>One-Time View:</strong> Yes</p>
+                                </div>
+                            )}
                             <p>
                                 <strong>Current Status:</strong> {selectedMessage.status}
                             </p>
@@ -1479,4 +1598,7 @@ export default function ChatPage() {
         </div>
     )
 }
+
+
+
 
