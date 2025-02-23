@@ -209,6 +209,10 @@ export default function Dashboard() {
                                 <Settings className="mr-2 h-4 w-4" />
                                 <span>Change Password</span>
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push("/delete-account")}>
+                                <User className="mr-2 h-4 w-4" />
+                                <span>Delete Account</span>
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={handleSignOut}>
                                 <LogOut className="mr-2 h-4 w-4" />
                                 <span>Sign Out</span>
