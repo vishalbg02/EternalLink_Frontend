@@ -6,6 +6,7 @@ import { Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import Chatbot from '@/components/chatbot'
 
 export default function Contact() {
     const [formState, setFormState] = useState({
