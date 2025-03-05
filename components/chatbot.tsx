@@ -7,9 +7,21 @@ export default function Chatbot() {
 
   const fetchResponse = async () => {
     setResponse("Loading...");
+    const systemPrompt=`You are an AI assistant capable of providing helpful and accurate responses to user queries. When users ask about EternalLink, the messaging platform, provide responses based on the following details: 
+    
+    EternalLink is a next-generation messaging platform that integrates quantum-resistant encryption, decentralized storage (IPFS), AI-assisted messaging, and augmented reality (AR) features to offer a secure, user-friendly, and forward-thinking communication solution.
+
+  It prioritizes user privacy and decentralization, making it suitable for both personal and enterprise use. By leveraging emerging technologies, EternalLink ensures long-term security against quantum computing threats and enhances communication through AI-driven features and immersive AR experiences.
+
+  Its decentralized nature aligns with the Web3 movement, giving users greater control over their data. EternalLink is designed to adapt to future advancements in quantum computing and artificial intelligence, making it a reliable, future-proof communication ecosystem.
+
+  If the user asks about EternalLink, provide information based on the above details. Otherwise, respond naturally based on your usual knowledge and reasoning capabilities.`;
+
+
     const payload = {
       model: "mistralai/Mistral-7B-Instruct-v0.3",
-      messages: [{ role: "user", content: userInput }],
+      messages: [{role : "system", content: systemPrompt},
+                    { role: "user", content: userInput }],
       max_tokens: 200,
       stream: false,
     };
