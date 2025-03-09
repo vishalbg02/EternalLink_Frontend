@@ -85,7 +85,10 @@ export default function ManageChats() {
                 }
             }
 
-            const response = await apiRequest(`/chats/${chatId}/expiration?expirationSeconds=${expirationSeconds || ''}`, "PUT")
+            const response = await apiRequest(
+                `/chats/${chatId}/expiration?expirationSeconds=${expirationSeconds === null ? 0 : expirationSeconds}`,
+                "PUT"
+            );
             if (response.success) {
                 setChats((prevChats) =>
                     prevChats.map((chat) =>
