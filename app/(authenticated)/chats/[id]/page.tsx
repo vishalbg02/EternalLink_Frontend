@@ -607,17 +607,27 @@ export default function ChatPage() {
     useEffect(() => {
         const handleVisibilityChange = async () => {
             if (document.visibilityState === "visible" && visibleMessages.size > 0) {
-                const messageIds = Array.from(visibleMessages)
+                const messageIds = Array.from(visibleMessages);
 
                 try {
                     await Promise.all(
                         messageIds.map(async (messageId) => {
-                            const messageExists = messages.find((msg) => msg.id === messageId)
+                            const messageExists = messages.find((msg) => msg.id === messageId);
                             if (messageExists && messageExists.status !== "SEEN") {
-                                await apiRequest(`/messages/${messageId}/status`, "PUT", { status: "SEEN" })
+                                try {
+                                    const result = await apiRequest(`/messages/${messageId}/status`, "PUT", { status: "SEEN" });
+                                    if (!result) {
+                                        console.warn(`No valid response for message ${messageId}`);
+                                        return;
+                                    }
+                                } catch (err) {
+                                    console.error(`Failed to update status for message ${messageId}:`, err);
+                                    // Skip this message and continue with others
+                                    return;
+                                }
                             }
                         })
-                    )
+                    );
 
                     setMessages((prev) =>
                         prev.map((msg) =>
@@ -625,16 +635,17 @@ export default function ChatPage() {
                                 ? { ...msg, status: "SEEN", seenAt: new Date().toISOString() }
                                 : msg
                         )
-                    )
+                    );
                 } catch (error) {
-                    console.error("Error updating message status:", error)
+                    console.error("Error updating message statuses:", error);
+                    toast.error("Failed to update some message statuses");
                 }
             }
-        }
+        };
 
-        document.addEventListener("visibilitychange", handleVisibilityChange)
-        return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
-    }, [visibleMessages, messages])
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }, [visibleMessages, messages]);
 
     const handleSummarize = async (messageId: number) => {
         try {
@@ -672,7 +683,6 @@ export default function ChatPage() {
         return `${seconds / 86400} days`
     }
 
-// ChatPage.tsx (partial update for renderMessage)
     const renderMessage = (message: Message) => {
         const isExpired = message.expiresAt && new Date(message.expiresAt) <= new Date();
         const isOneTimeViewed = message.isOneTimeView && revealedOneTimeMessages.has(message.id) && message.status === "SEEN";
@@ -683,8 +693,6 @@ export default function ChatPage() {
         const preview = imagePreviews.find((p) => p.fileIpfsHash === message.file?.fileIpfsHash);
         const isCurrentUserSender = message.sender?.username === currentUser;
         const isARMessage = !!message.arMessage;
-
-        console.log("Rendering message:", message); // Debug log
 
         const handleReveal = async () => {
             setRevealedOneTimeMessages((prev) => new Set([...prev, message.id]));
@@ -754,39 +762,51 @@ export default function ChatPage() {
                                             <span>{message.arMessage.latitude.toFixed(6)}, {message.arMessage.longitude.toFixed(6)}</span>
                                         </div>
                                     </div>
-                                ) : !message.arMessage?.isViewed ? (
+                                ) : (
                                     <div className="space-y-2">
                                         <div className="flex items-center space-x-2 text-purple-400 text-sm">
                                             <MapPin className="w-4 h-4" />
                                             <span>{message.arMessage.latitude.toFixed(6)}, {message.arMessage.longitude.toFixed(6)}</span>
                                         </div>
-                                        <ARVideoHologram messageId={message.id} arMessage={message.arMessage} onVideoUpload={() => Promise.resolve()} />
+                                        <ARVideoHologram
+                                            messageId={message.id}
+                                            arMessage={message.arMessage}
+                                            onVideoUpload={() => Promise.resolve()} // Not used for received messages
+                                            onGestureVerified={(id) => {
+                                                setMessages((prev) =>
+                                                    prev.map((msg) =>
+                                                        msg.id === id ? { ...msg, arMessage: { ...msg.arMessage!, isViewed: true } } : msg
+                                                    )
+                                                );
+                                            }}
+                                        />
+                                        {message.arMessage.isViewed && message.file && (
+                                            <span className="text-sm text-gray-400">AR Video Viewed</span>
+                                        )}
                                     </div>
-                                ) : (
-                                    message.file ? renderFileAttachment(message.file, preview, isRevealed) : (
-                                        <span className="text-sm text-gray-400">AR Video Viewed</span>
-                                    )
                                 )
                             ) : (
-                                !message.isEncrypted && message.content && (
-                                    message.isOneTimeView && !isRevealed ? (
-                                        <div className="flex items-center space-x-2">
-                                            <Eye className="w-4 h-4 text-gray-400" />
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={handleReveal}
-                                                className="text-gray-400 hover:text-purple-400 transition-colors"
-                                            >
-                                                Reveal One-Time Message
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <p className="text-gray-100 text-sm leading-relaxed">{translatedMessages[message.id] || message.content}</p>
-                                    )
-                                )
+                                <>
+                                    {!message.isEncrypted && message.content && (
+                                        message.isOneTimeView && !isRevealed ? (
+                                            <div className="flex items-center space-x-2">
+                                                <Eye className="w-4 h-4 text-gray-400" />
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={handleReveal}
+                                                    className="text-gray-400 hover:text-purple-400 transition-colors"
+                                                >
+                                                    Reveal One-Time Message
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <p className="text-gray-100 text-sm leading-relaxed">{translatedMessages[message.id] || message.content}</p>
+                                        )
+                                    )}
+                                    {message.file && !isARMessage && renderFileAttachment(message.file, preview, isRevealed)}
+                                </>
                             )}
-                            {!isARMessage && message.file && renderFileAttachment(message.file, preview, isRevealed)}
                             {(message.expiresAt || message.isOneTimeView) && (
                                 <div className="flex items-center space-x-2 text-gray-400 text-xs">
                                     <Clock className="w-4 h-4" />

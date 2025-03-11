@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import ChatbotWidget from "@/components/ChatbotWidget"
 import {
     MessageSquare,
     Users,
@@ -19,14 +20,14 @@ import {
     LinkIcon,
     Calendar,
     Settings,
-    LogOut  // Added missing LogOut icon
+    LogOut
 } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuTrigger,
     DropdownMenuContent,
     DropdownMenuItem
-} from "@/components/ui/dropdown-menu"  // Added missing imports
+} from "@/components/ui/dropdown-menu"
 
 // Utility function to handle IPFS URLs
 const getIpfsUrl = (hash: string | null): string => {
@@ -144,14 +145,11 @@ export default function Dashboard() {
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-screen bg-gray-900">
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                <div
                     className="text-2xl font-bold text-white"
                 >
                     Loading...
-                </motion.div>
+                </div>
             </div>
         )
     }
@@ -159,14 +157,11 @@ export default function Dashboard() {
     if (error) {
         return (
             <div className="flex justify-center items-center min-h-screen bg-gray-900">
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                <div
                     className="text-2xl font-bold text-red-500"
                 >
                     {error}
-                </motion.div>
+                </div>
             </div>
         )
     }
@@ -174,23 +169,17 @@ export default function Dashboard() {
     if (!user) {
         return (
             <div className="flex justify-center items-center min-h-screen bg-gray-900">
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                <div
                     className="text-2xl font-bold text-red-500"
                 >
                     Error loading user data. Please try again.
-                </motion.div>
+                </div>
             </div>
         )
     }
 
     return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
+        <div
             className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white p-8"
         >
             <div className="max-w-7xl mx-auto">
@@ -403,6 +392,9 @@ export default function Dashboard() {
                     </Card>
                 </div>
             </div>
-        </motion.div>
+
+            <ChatbotWidget />
+
+        </div>
     )
 }

@@ -25,10 +25,11 @@ export default function Signup() {
             await apiRequest("/auth/signup", "POST", { username, email, password })
             toast.success("OTP sent to your email. Please verify to complete signup.")
             setShowOtpVerification(true)
-        } catch (error) {
-            console.error("Signup initiation failed:", error)
-            setError(error instanceof Error ? error.message : "Account creation failed. Please try again.")
-            toast.error("Signup initiation failed. Please try again.")
+        }catch (error) {
+            console.error("Signup initiation failed:", error);
+            console.error("Error details:", JSON.stringify(error, null, 2));
+            setError(error instanceof Error ? error.message : "Account creation failed. Please try again.");
+            toast.error("Signup initiation failed. Please try again.");
         } finally {
             setIsLoading(false)
         }

@@ -1,16 +1,15 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Video, X, Send, AlertCircle, XCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { apiRequest } from "@/utils/api";
-import { loadAFrame } from "@/utils/aframe-loader";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { get, set } from "idb-keyval"; // For caching videos
-import { preloadMediaPipeHands } from "@/utils/scriptLoader"; // Import the utility
+import { get, set } from "idb-keyval";
+import { preloadMediaPipeHands } from "@/utils/scriptLoader";
 
 interface ARMessage {
     latitude: number;
@@ -26,6 +25,7 @@ interface ARVideoHologramProps {
     messageId?: number;
     arMessage?: ARMessage;
     onVideoUpload: (videoBlob: Blob, gestureTrigger: string) => Promise<void>;
+    onGestureVerified?: (messageId: number) => void;
 }
 
 interface HandLandmark {
@@ -35,12 +35,12 @@ interface HandLandmark {
 }
 
 const HAND_CONNECTIONS = [
-    [0, 1], [1, 2], [2, 3], [3, 4],         // thumb
-    [0, 5], [5, 6], [6, 7], [7, 8],         // index finger
-    [0, 9], [9, 10], [10, 11], [11, 12],    // middle finger
-    [0, 13], [13, 14], [14, 15], [15, 16],  // ring finger
-    [0, 17], [17, 18], [18, 19], [19, 20],  // pinky
-    [0, 5], [5, 9], [9, 13], [13, 17],      // palm
+    [0, 1], [1, 2], [2, 3], [3, 4], // thumb
+    [0, 5], [5, 6], [6, 7], [7, 8], // index finger
+    [0, 9], [9, 10], [10, 11], [11, 12], // middle finger
+    [0, 13], [13, 14], [14, 15], [15, 16], // ring finger
+    [0, 17], [17, 18], [18, 19], [19, 20], // pinky
+    [0, 5], [5, 9], [9, 13], [13, 17], // palm
 ];
 
 const gestureOptions = [
@@ -50,7 +50,7 @@ const gestureOptions = [
     { value: "THUMBS_UP", label: "Thumbs Up 👍" },
 ];
 
-const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologramProps) => {
+const ARVideoHologram = ({ messageId, arMessage, onVideoUpload, onGestureVerified }: ARVideoHologramProps) => {
     const [isRecording, setIsRecording] = useState(false);
     const [recordedVideoBlob, setRecordedVideoBlob] = useState<Blob | null>(null);
     const [selectedGestureTrigger, setSelectedGestureTrigger] = useState<string>("");
@@ -63,6 +63,9 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
     const [handedness, setHandedness] = useState<string[]>([]);
     const [isMediaPipeLoaded, setIsMediaPipeLoaded] = useState(false);
     const [cachedVideoUrl, setCachedVideoUrl] = useState<string | null>(null);
+    const [gestureVerified, setGestureVerified] = useState(false);
+    const [unityInstance, setUnityInstance] = useState<any>(null);
+    const [isUnityLoaded, setIsUnityLoaded] = useState(false);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -71,8 +74,8 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
     const handsRef = useRef<any>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const frameRequestRef = useRef<number | null>(null);
+    const unityContainerRef = useRef<HTMLDivElement>(null);
 
-    // Load MediaPipe Hands scripts once on component mount
     useEffect(() => {
         preloadMediaPipeHands()
             .then(() => setIsMediaPipeLoaded(true))
@@ -80,7 +83,20 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
                 console.error("Failed to preload MediaPipe Hands:", error);
                 setCameraError("Failed to load hand detection scripts.");
             });
-    }, []);
+
+        window.onUnityARVideoReady = () => {
+            console.log("Unity is ready to receive video URLs");
+            setIsUnityLoaded(true);
+        };
+
+        loadUnity();
+
+        return () => {
+            stopStream();
+            if (cachedVideoUrl) URL.revokeObjectURL(cachedVideoUrl);
+            cleanupUnity();
+        };
+    }, [cachedVideoUrl]);
 
     const drawHandLandmarks = useCallback(() => {
         if (!canvasRef.current || !videoRef.current || handLandmarks.length === 0) return;
@@ -134,21 +150,6 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
         drawHandLandmarks();
     }, [handLandmarks, drawHandLandmarks]);
 
-    useEffect(() => {
-        if ((isRecording || isCameraDialogOpen) && streamRef.current) {
-            const targetRef = isRecording ? livePreviewRef : videoRef;
-            if (targetRef.current) {
-                targetRef.current.srcObject = streamRef.current;
-                targetRef.current.onloadedmetadata = () =>
-                    targetRef.current?.play().catch((error) => console.error("Error playing video:", error));
-            }
-        }
-    }, [isRecording, isCameraDialogOpen]);
-
-    useEffect(() => {
-        return () => stopStream();
-    }, []);
-
     const initializeCameraAndHands = useCallback(async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -157,12 +158,9 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
             });
             streamRef.current = stream;
 
-            if (!isMediaPipeLoaded) {
-                throw new Error("MediaPipe Hands not yet loaded");
-            }
+            if (!isMediaPipeLoaded) throw new Error("MediaPipe Hands not yet loaded");
 
-            // @ts-ignore
-            const Hands = window.Hands;
+            const Hands = (window as any).Hands;
             if (!Hands) throw new Error("MediaPipe Hands not available");
 
             handsRef.current = new Hands({
@@ -198,7 +196,7 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
                 frameRequestRef.current = requestAnimationFrame(sendFrames);
             };
 
-            if (!isRecording && videoRef.current) {
+            if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 videoRef.current.onloadedmetadata = () => {
                     videoRef.current?.play();
@@ -208,21 +206,25 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
 
             setCameraError(null);
         } catch (err) {
-            setCameraError("Failed to initialize camera or hand detection. Check permissions.");
+            setCameraError("Failed to initialize camera or hand detection.");
             stopStream();
+            console.error("Camera/Hands initialization error:", err);
             throw err;
         }
-    }, [isRecording, isMediaPipeLoaded]);
+    }, [isMediaPipeLoaded]);
 
     const stopStream = useCallback(() => {
         if (streamRef.current) {
-            streamRef.current.getTracks().forEach((track) => track.stop());
+            streamRef.current.getTracks().forEach((track) => {
+                track.stop();
+                track.enabled = false; // Explicitly disable tracks
+            });
             streamRef.current = null;
         }
         if (videoRef.current) videoRef.current.srcObject = null;
         if (livePreviewRef.current) livePreviewRef.current.srcObject = null;
         if (handsRef.current) {
-            handsRef.current.close().catch(() => {});
+            handsRef.current.close().catch((err: any) => console.error("Error closing hands:", err));
             handsRef.current = null;
         }
         if (frameRequestRef.current) {
@@ -245,8 +247,7 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
         const pinkyTip = landmarks[20];
         const wrist = landmarks[0];
 
-        const distance = (p1: HandLandmark, p2: HandLandmark) =>
-            Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+        const distance = (p1: HandLandmark, p2: HandLandmark) => Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
 
         if (
             distance(indexTip, wrist) > 0.2 &&
@@ -286,30 +287,52 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
     }, []);
 
     const startRecording = useCallback(async () => {
+        if (isRecording) return; // Prevent multiple starts
+
         try {
+            // Stop any existing stream to free up resources
+            stopStream();
+
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment" },
+                video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }, // Lower resolution
                 audio: true,
             });
             streamRef.current = stream;
-            console.log("Stream obtained:", stream);
 
-            mediaRecorderRef.current = new MediaRecorder(stream);
-            const chunks: Blob[] = [];
-            mediaRecorderRef.current.ondataavailable = (e) => chunks.push(e.data);
-            mediaRecorderRef.current.onstop = () => setRecordedVideoBlob(new Blob(chunks, { type: "video/webm" }));
-            mediaRecorderRef.current.onerror = (err) => console.error("MediaRecorder error:", err);
-            mediaRecorderRef.current.start();
-            console.log("Recording started");
-
-            setIsRecording(true);
             if (livePreviewRef.current) {
                 livePreviewRef.current.srcObject = stream;
-                livePreviewRef.current.play();
+                livePreviewRef.current.onloadedmetadata = () => {
+                    livePreviewRef.current?.play().catch((error) =>
+                        console.error("Error playing preview:", error)
+                    );
+                };
             }
+
+            mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: "video/webm; codecs=vp9" });
+            const chunks: Blob[] = [];
+
+            mediaRecorderRef.current.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+            mediaRecorderRef.current.onstop = () => {
+                const blob = new Blob(chunks, { type: "video/webm" });
+                setRecordedVideoBlob(blob);
+                stopStream(); // Ensure stream is stopped after recording
+            };
+            mediaRecorderRef.current.onerror = (err) => {
+                console.error("MediaRecorder error:", err);
+                toast.error("Recording failed due to an error.");
+                stopStream();
+            };
+
+            mediaRecorderRef.current.start(1000); // Timeslice of 1 second
+            setIsRecording(true);
+            setCameraError(null);
+
+            console.log("Recording started successfully");
         } catch (error) {
             console.error("Start recording failed:", error);
-            toast.error(error.message || "Failed to start recording");
+            toast.error((error as Error).message || "Failed to start recording. Please check camera permissions.");
             stopStream();
         }
     }, [stopStream]);
@@ -317,10 +340,11 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
     const stopRecording = useCallback(() => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
             mediaRecorderRef.current.stop();
+            mediaRecorderRef.current = null;
         }
         setIsRecording(false);
-        stopStream();
-    }, [stopStream]);
+        // Stream cleanup is handled in stopStream
+    }, []);
 
     const handleUpload = useCallback(async () => {
         if (!recordedVideoBlob || !selectedGestureTrigger) {
@@ -334,12 +358,16 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
             setSelectedGestureTrigger("");
             toast.success("AR Message Sent!");
         } catch (error) {
+            console.error("Upload failed:", error);
             toast.error("Failed to upload AR video");
         }
     }, [recordedVideoBlob, selectedGestureTrigger, onVideoUpload]);
 
     const loadCachedVideo = useCallback(async () => {
-        if (!arMessage?.videoIpfsHash) return;
+        if (!arMessage?.videoIpfsHash) {
+            console.error("No videoIpfsHash provided");
+            return null;
+        }
 
         const cacheKey = `ar-video-${arMessage.videoIpfsHash}`;
         const cachedBlob = await get(cacheKey);
@@ -350,33 +378,131 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
             return url;
         }
 
-        const response = await fetch(`/api/files/download/${arMessage.videoIpfsHash}`);
-        if (!response.ok) throw new Error("Failed to fetch video");
-        const blob = await response.blob();
+        const response = await apiRequest(`/files/download/${arMessage.videoIpfsHash}`, "GET", null, false, "blob");
+        if (!response?.blob) throw new Error("Failed to fetch video");
+        const blob = response.blob;
         await set(cacheKey, blob);
         const url = URL.createObjectURL(blob);
         setCachedVideoUrl(url);
         return url;
     }, [arMessage?.videoIpfsHash]);
 
+    const cleanupUnity = useCallback(() => {
+        if (unityInstance) {
+            unityInstance.Quit().then(() => {
+                console.log("Unity instance cleaned up");
+                setUnityInstance(null);
+                setIsUnityLoaded(false);
+            }).catch((err: any) => console.error("Error quitting Unity:", err));
+        }
+    }, [unityInstance]);
+
+    const loadUnity = useCallback(async () => {
+        if (unityInstance || isUnityLoaded || !unityContainerRef.current) return;
+
+        try {
+            const script = document.createElement("script");
+            script.src = "/unity-build/Unity_.loader.js";
+            script.async = true;
+            script.onload = () => {
+                const createUnityInstance = (window as any).createUnityInstance;
+                if (!createUnityInstance) {
+                    throw new Error("Unity createUnityInstance not found");
+                }
+
+                createUnityInstance(unityContainerRef.current, {
+                    dataUrl: "/unity-build/Unity_.data",
+                    frameworkUrl: "/unity-build/Unity_.framework.js",
+                    codeUrl: "/unity-build/Unity_.wasm",
+                    companyName: "YourCompany",
+                    productName: "ARVideoPlayer",
+                    productVersion: "1.0",
+                    webglContextAttributes: {
+                        alpha: true,
+                        antialias: true,
+                        depth: true,
+                        failIfMajorPerformanceCaveat: false,
+                        powerPreference: "high-performance",
+                        premultipliedAlpha: true,
+                        preserveDrawingBuffer: false,
+                        stencil: true,
+                    },
+                })
+                    .then((instance: any) => {
+                        setUnityInstance(instance);
+                        window.unityInstance = instance;
+                        console.log("Unity instance created successfully");
+                    })
+                    .catch((error: any) => {
+                        console.error("Error creating Unity instance:", error);
+                        toast.error(`Unity failed to load: ${error.message}`);
+                    });
+            };
+            script.onerror = () => {
+                throw new Error("Failed to load Unity_.loader.js");
+            };
+            document.body.appendChild(script);
+        } catch (error) {
+            console.error("Unity loading failed:", error);
+            toast.error("Failed to initialize Unity environment");
+        }
+    }, [unityInstance, isUnityLoaded]);
+
+    const startUnityAR = useCallback(async () => {
+        if (!unityInstance || !isUnityLoaded) {
+            toast.error("Unity is not loaded yet. Please wait.");
+            return;
+        }
+
+        const videoUrl = await loadCachedVideo();
+        if (!videoUrl) {
+            toast.error("Failed to load video URL");
+            return;
+        }
+
+        try {
+            unityInstance.SendMessage("ARVideoPlayer", "StartARVideoDisplay", videoUrl);
+            setIsPlaying(true);
+            toast.success("AR/VR video started in Unity!");
+        } catch (error) {
+            console.error("Error starting Unity AR:", error);
+            toast.error("Failed to start AR/VR video");
+        }
+    }, [unityInstance, isUnityLoaded, loadCachedVideo]);
+
+    const stopUnityAR = useCallback(() => {
+        if (!unityInstance) return;
+        try {
+            unityInstance.SendMessage("ARVideoPlayer", "ResetVideoPlacement");
+            setIsPlaying(false);
+            toast.success("AR/VR video stopped!");
+        } catch (error) {
+            console.error("Error stopping Unity AR:", error);
+            toast.error("Failed to stop AR/VR video");
+        }
+    }, [unityInstance]);
+
     const handleGestureDetected = useCallback(async () => {
-        if (!messageId || !arMessage?.videoIpfsHash || !arMessage.gestureTrigger || isPlaying) return;
+        if (!messageId || !arMessage?.videoIpfsHash || !arMessage.gestureTrigger || isPlaying || gestureVerified) return;
 
         if (gestureDetected !== arMessage.gestureTrigger) return;
 
         try {
-            // Modified API request to use query parameters instead of request body
-            await apiRequest(`/ar-messages/view/${messageId}?gesturePerformed=${gestureDetected}`, "POST");
-            const videoUrl = await loadCachedVideo();
-            if (videoUrl) {
-                setIsPlaying(true);
-                stopStream();
-                setIsCameraDialogOpen(false);
+            const response = await apiRequest(`/ar-messages/view/${messageId}?gesturePerformed=${gestureDetected}`, "POST");
+            setGestureVerified(true);
+            stopStream();
+            setIsCameraDialogOpen(false);
+
+            if (response.success && onGestureVerified) {
+                onGestureVerified(messageId);
             }
+
+            toast.success("Gesture verified! Click 'View in AR/VR' to start Unity.");
         } catch (error) {
-            toast.error("Failed to play AR video");
+            console.error("Gesture verification failed:", error);
+            toast.error("Failed to verify gesture");
         }
-    }, [messageId, arMessage, gestureDetected, isPlaying, loadCachedVideo, stopStream]);
+    }, [messageId, arMessage, gestureDetected, isPlaying, gestureVerified, stopStream, onGestureVerified]);
 
     const openCameraPopup = useCallback(async () => {
         setIsCameraDialogOpen(true);
@@ -393,16 +519,14 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
         }
     }, [gestureDetected, arMessage, handleGestureDetected]);
 
-    useEffect(() => {
-        return () => {
-            if (cachedVideoUrl) {
-                URL.revokeObjectURL(cachedVideoUrl);
-            }
-        };
-    }, [cachedVideoUrl]);
-
     return (
         <div className="space-y-4">
+            <div
+                ref={unityContainerRef}
+                id="unityContainer"
+                className={`w-full h-[50vh] bg-black rounded-lg overflow-hidden ${isPlaying ? "block" : "hidden"}`}
+            />
+
             {cameraError && (
                 <div className="flex items-center bg-red-100 p-2 rounded-lg mb-2">
                     <AlertCircle className="mr-2 text-red-500" />
@@ -428,7 +552,9 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
                                 className="w-full aspect-video bg-black rounded-lg overflow-hidden relative"
                             >
                                 <video ref={livePreviewRef} className="w-full h-full object-cover" autoPlay playsInline muted />
-                                <span className="absolute top-2 left-2 text-xs text-red-400 bg-gray-900/80 px-1 rounded">Recording</span>
+                                <span className="absolute top-2 left-2 text-xs text-red-400 bg-gray-900/80 px-1 rounded">
+                                    Recording
+                                </span>
                             </motion.div>
                         )}
 
@@ -491,12 +617,16 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
             ) : (
                 arMessage?.videoIpfsHash && (
                     <div className="mt-3">
-                        {!arMessage.isViewed ? (
+                        {!arMessage.isViewed && !gestureVerified ? (
                             <div className="flex flex-col items-start space-y-2">
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={openCameraPopup}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        openCameraPopup();
+                                    }}
                                     className="text-purple-600 hover:text-purple-700"
                                 >
                                     <Video className="w-4 h-4 mr-2" />
@@ -504,11 +634,43 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
                                 </Button>
                                 <span className="text-xs text-gray-500">Perform {arMessage.gestureTrigger} gesture to view</span>
                             </div>
-                        ) : isPlaying && cachedVideoUrl ? (
-                            <a-scene embedded arjs="sourceType: webcam;">
-                                <a-video src={cachedVideoUrl} width="2" height="1.5" position="0 1.5 -3" rotation="0 0 0"></a-video>
-                                <a-camera position="0 1.6 0"></a-camera>
-                            </a-scene>
+                        ) : gestureVerified && !isPlaying ? (
+                            <div className="flex flex-col items-start space-y-2">
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        startUnityAR();
+                                    }}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                                    disabled={!isUnityLoaded}
+                                >
+                                    <Video className="w-4 h-4 mr-2" />
+                                    View in AR/VR (Unity)
+                                </Button>
+                                <span className="text-xs text-gray-500">
+                                    {isUnityLoaded
+                                        ? "Gesture verified, click to start Unity AR/VR experience"
+                                        : "Loading Unity, please wait..."}
+                                </span>
+                            </div>
+                        ) : isPlaying ? (
+                            <div className="relative">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        stopUnityAR();
+                                    }}
+                                    className="absolute top-2 right-2 text-white z-10"
+                                >
+                                    <XCircle className="w-6 h-6" />
+                                </Button>
+                            </div>
                         ) : (
                             <span className="text-sm text-gray-500">AR Video Viewed</span>
                         )}
@@ -543,14 +705,16 @@ const ARVideoHologram = ({ messageId, arMessage, onVideoUpload }: ARVideoHologra
                                     <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
                                     <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-2">
                                         <div className="flex justify-between items-center">
-                      <span>
-                        Detected: <span className="font-bold">{gestureDetected || "None"}</span>
-                      </span>
-                                            <span className={gestureDetected === arMessage?.gestureTrigger ? "text-green-400" : "text-gray-300"}>
-                        {gestureDetected === arMessage?.gestureTrigger
-                            ? "✓ Correct gesture!"
-                            : `Waiting for ${arMessage?.gestureTrigger}`}
-                      </span>
+                                            <span>
+                                                Detected: <span className="font-bold">{gestureDetected || "None"}</span>
+                                            </span>
+                                            <span
+                                                className={gestureDetected === arMessage?.gestureTrigger ? "text-green-400" : "text-gray-300"}
+                                            >
+                                                {gestureDetected === arMessage?.gestureTrigger
+                                                    ? "✓ Correct gesture!"
+                                                    : `Waiting for ${arMessage?.gestureTrigger}`}
+                                            </span>
                                         </div>
                                     </div>
                                     {!isMediaPipeLoaded && (
