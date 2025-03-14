@@ -1,31 +1,64 @@
-'use client'
+"use client"
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
-import { motion, useAnimation, AnimatePresence } from 'framer-motion'
+import Image, { StaticImageData } from 'next/image'
+import { motion, useAnimation, AnimatePresence, MotionProps } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import { ArrowRight, Lock, Zap, Globe, Users, Smartphone, Brain } from 'lucide-react'
 
-const FeatureCard = ({ icon, title, description }) => (
-    <motion.div
-        className="bg-gray-800 p-6 rounded-lg shadow-lg transition-all duration-300 ease-in-out hover:scale-105"
-        whileHover={{ y: -5 }}
+// Import Google Fonts
+import { Rajdhani, Roboto_Mono } from 'next/font/google'
+
+// Define types for components
+interface FeatureCardProps {
+    icon: React.ReactNode;
+    title: string;
+    description: string;
+}
+
+interface TestimonialCardProps {
+    name: string;
+    role: string;
+    quote: string;
+    image: string | StaticImageData;
+}
+
+// Custom motion div props interface with className
+interface MotionDivProps extends MotionProps {
+    className?: string;
+    children: React.ReactNode;
+}
+
+const rajdhani = Rajdhani({
+    weight: ['700'], // Bold weight for headings
+    subsets: ['latin'],
+})
+
+const robotoMono = Roboto_Mono({
+    weight: ['400'], // Regular weight for text
+    subsets: ['latin'],
+})
+
+const FeatureCard: React.FC<FeatureCardProps> = ({ icon, title, description }) => (
+    <motion.div {...{ className: '' } as MotionDivProps}
+                className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg transition-all duration-300 ease-in-out hover:scale-105"
+                whileHover={{ y: -5 }}
     >
         {icon}
-        <h3 className="text-xl font-semibold mb-2">{title}</h3>
-        <p className="text-gray-300">{description}</p>
+        <h3 className={`${rajdhani.className} text-xl font-semibold mb-2 text-teal-500 dark:text-teal-400`}>{title}</h3>
+        <p className={`${robotoMono.className} text-gray-300 text-sm`}>{description}</p>
     </motion.div>
 )
 
-const TestimonialCard = ({ name, role, quote, image }) => (
-    <motion.div
-        className="bg-gray-800 p-6 rounded-lg shadow-lg"
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+const TestimonialCard: React.FC<TestimonialCardProps> = ({ name, role, quote, image }) => (
+    <motion.div {...{ className: '' } as MotionDivProps}
+                className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg"
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
     >
-        <p className="text-lg italic mb-4">"{quote}"</p>
+        <p className={`${robotoMono.className} text-lg italic mb-4 text-gray-300`}>"{quote}"</p>
         <div className="flex items-center">
             <Image
                 src={image}
@@ -35,8 +68,8 @@ const TestimonialCard = ({ name, role, quote, image }) => (
                 className="w-10 h-10 rounded-full mr-4"
             />
             <div>
-                <p className="font-semibold">{name}</p>
-                <p className="text-sm text-gray-400">{role}</p>
+                <p className={`${rajdhani.className} font-semibold text-teal-500 dark:text-teal-400`}>{name}</p>
+                <p className={`${robotoMono.className} text-sm text-gray-400`}>{role}</p>
             </div>
         </div>
     </motion.div>
@@ -70,70 +103,76 @@ export default function Home() {
     }, [controls, inView])
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-            {/* Header */}
-            <header className="w-full bg-gray-900/80 backdrop-blur-lg fixed top-0 z-10 border-b border-gray-800">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-transparent text-white relative overflow-hidden">
+            {/* Video Background */}
+            <video autoPlay loop muted className="absolute top-0 left-0 w-full h-full object-cover opacity-50 z-0">
+                <source src="/images/securityvid.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+            </video>
+            <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/70 to-transparent z-0"></div>
+
+            {/* Header - Adjusted z-index */}
+            <header className="w-full bg-gray-900/80 backdrop-blur-lg fixed top-0 z-20 border-b border-gray-800">
                 <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
-                    <Link href="/" className="text-2xl font-bold text-blue-400 hover:text-blue-300 transition-colors">
+                    <Link href="/" className="text-2xl font-bold text-teal-400 hover:text-teal-300 transition-colors">
                         EternalLink
                     </Link>
                     <div className="space-x-6">
-                        <Link href="/about" className="hover:text-blue-400 transition duration-300">About</Link>
-                        <Link href="/features" className="hover:text-blue-400 transition duration-300">Features</Link>
-                        <Link href="/contact" className="hover:text-blue-400 transition duration-300">Contact</Link>
+                        <Link href="/about" className="hover:text-teal-400 transition duration-300">About</Link>
+                        <Link href="/features" className="hover:text-teal-400 transition duration-300">Features</Link>
+                        <Link href="/contact" className="hover:text-teal-400 transition duration-300">Contact</Link>
                     </div>
                 </nav>
             </header>
 
-            <main className="flex flex-col items-center justify-center w-full flex-1 px-4 sm:px-20 text-center">
+            <main className="flex flex-col items-center justify-center w-full flex-1 px-4 sm:px-20 text-center relative z-10">
                 {/* Hero Section */}
-                <motion.div
-                    className="w-full max-w-4xl pt-32 md:pt-40"
-                    initial={{opacity: 0, y: -50}}
-                    animate={{opacity: 1, y: 0}}
-                    transition={{duration: 0.8, ease: 'easeOut'}}
+                <motion.div {...{ className: '' } as MotionDivProps}
+                            className="w-full max-w-4xl pt-32 md:pt-40"
+                            initial={{opacity: 0, y: -50}}
+                            animate={{opacity: 1, y: 0}}
+                            transition={{duration: 0.8, ease: 'easeOut'}}
                 >
-                    <h1 className="text-5xl sm:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-purple-600 drop-shadow-lg">
+                    <h1 className={`${rajdhani.className} text-5xl sm:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-teal-400 to-cyan-400 drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)]`}>
                         Welcome to EternalLink
                     </h1>
-                    <p className="text-xl sm:text-2xl mb-12 max-w-2xl mx-auto text-gray-200">
-                        Experience the future of secure, decentralized communication with cutting-edge AR capabilities
-                        and AI-powered assistance.
+                    <p className={`${robotoMono.className} text-xl sm:text-2xl mb-12 max-w-2xl mx-auto text-gray-300 tracking-wide leading-relaxed drop-shadow-[0_2px_4px_rgba(0,0,0,0.2)]`}>
+                        Experience the future of secure, decentralized communication with cutting-edge AR capabilities and AI-powered assistance.
                     </p>
                 </motion.div>
 
                 {/* CTA Buttons */}
-                <motion.div
-                    className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6 mb-20"
-                    initial={{opacity: 0, y: 20}}
-                    animate={{opacity: 1, y: 0}}
-                    transition={{delay: 0.4, duration: 0.5}}
+                <motion.div {...{ className: '' } as MotionDivProps}
+                            className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6 mb-20"
+                            initial={{opacity: 0, y: 20}}
+                            animate={{opacity: 1, y: 0}}
+                            transition={{delay: 0.4, duration: 0.5}}
                 >
                     <Link href="/login"
-                          className="group bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-8 rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg hover:shadow-blue-500/25 flex items-center justify-center">
+                          className="group bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 px-8 rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg hover:shadow-teal-500/25 flex items-center justify-center">
                         Login
                         <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform"/>
                     </Link>
                     <Link href="/signup"
-                          className="group bg-purple-500 hover:bg-purple-600 text-white font-bold py-4 px-8 rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg hover:shadow-purple-500/25 flex items-center justify-center">
+                          className="group bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-4 px-8 rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25 flex items-center justify-center">
                         Sign Up
                         <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform"/>
                     </Link>
                 </motion.div>
 
                 {/* Features Section */}
-                <motion.div
-                    ref={ref}
-                    animate={controls}
-                    initial="hidden"
-                    variants={{
-                        visible: {opacity: 1, y: 0},
-                        hidden: {opacity: 0, y: 50}
-                    }}
-                    transition={{duration: 0.5, ease: 'easeOut'}}
-                    className="w-full max-w-6xl mb-20"
+                <motion.div {...{ className: '' } as MotionDivProps}
+                            ref={ref}
+                            animate={controls}
+                            initial="hidden"
+                            variants={{
+                                visible: {opacity: 1, y: 0},
+                                hidden: {opacity: 0, y: 50}
+                            }}
+                            transition={{duration: 0.5, ease: 'easeOut'}}
+                            className="w-full max-w-6xl mb-20"
                 >
-                    <h2 className="text-3xl sm:text-4xl font-bold mb-12 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                    <h2 className={`${rajdhani.className} text-3xl sm:text-4xl font-bold mb-12 text-center bg-clip-text text-transparent bg-gradient-to-r from-teal-400 to-cyan-400`}>
                         Why Choose EternalLink?
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 px-4">
@@ -143,62 +182,76 @@ export default function Home() {
                     </div>
                 </motion.div>
 
-                {/* How It Works Section */}
                 <motion.div
-                    initial={{opacity: 0}}
-                    animate={{opacity: 1}}
-                    transition={{delay: 0.8, duration: 0.5}}
-                    className="w-full max-w-4xl mb-20"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.8, duration: 0.5 }}
+                    className="w-full max-w-6xl mb-20 px-4 sm:px-6 lg:px-8"
                 >
-                    <h2 className="text-3xl sm:text-4xl font-bold mb-8 text-center">How It Works</h2>
-                    <div className="relative">
-                        <div className="absolute left-1/2 transform -translate-x-1/2 h-full w-1 bg-blue-500"></div>
-                        {[
-                            {
-                                title: "Create Your EternalLink",
-                                description: "Sign up and generate your unique, memorable identifier combining words and emojis."
-                            },
-                            {
-                                title: "Connect Securely",
-                                description: "Add friends using their EternalLinks and start messaging with quantum-resistant encryption."
-                            },
-                            {
-                                title: "Explore AR Messaging",
-                                description: "Leave virtual messages in real-world locations for friends to discover."
-                            },
-                            {
-                                title: "Leverage AI Assistance",
-                                description: "Get smart suggestions and writing help from our AI-powered assistant."
-                            }
-                        ].map((step, index) => (
-                            <motion.div
-                                key={index}
-                                className="relative mb-8 flex items-center"
-                                initial={{opacity: 0, x: index % 2 === 0 ? -50 : 50}}
-                                animate={{opacity: 1, x: 0}}
-                                transition={{delay: index * 0.2, duration: 0.5}}
-                            >
-                                <div className={`w-1/2 ${index % 2 === 0 ? 'pr-8 text-right' : 'pl-8'}`}>
-                                    <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
-                                    <p>{step.description}</p>
-                                </div>
-                                <div
-                                    className="absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
-                                    {index + 1}
-                                </div>
-                            </motion.div>
-                        ))}
+                    <h2 className="text-3xl sm:text-4xl font-bold mb-12 text-center text-white">How It Works</h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+                        {/* Timeline (Flow Diagram) */}
+                        <div className="relative">
+                            <div className="absolute left-6 w-1 h-full bg-gradient-to-b from-teal-400 to-blue-500 transform translate-x-1/2"></div>
+                            {[
+                                {
+                                    title: "Create Your EternalLink",
+                                    description: "Sign up and generate your unique, memorable identifier combining words and emojis."
+                                },
+                                {
+                                    title: "Connect Securely",
+                                    description: "Add friends using their EternalLinks and start messaging with quantum-resistant encryption."
+                                },
+                                {
+                                    title: "Explore AR Messaging",
+                                    description: "Leave virtual messages in real-world locations for friends to discover."
+                                },
+                                {
+                                    title: "Leverage AI Assistance",
+                                    description: "Get smart suggestions and writing help from our AI-powered assistant."
+                                }
+                            ].map((step, index) => (
+                                <motion.div
+                                    key={index}
+                                    className="relative mb-20"
+                                    initial={{ opacity: 0, x: -50 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: index * 0.2, duration: 0.5 }}
+                                >
+                                    <div className="flex items-start">
+                                        <div className="w-10 h-10 bg-teal-400 rounded-full flex items-center justify-center text-white font-semibold shadow-lg absolute -left-14 transform transition-all duration-300 hover:bg-teal-500">
+                                            {index + 1}
+                                        </div>
+                                        <div className="ml-12 pl-4 pr-6 py-3 bg-gray-800/80 rounded-lg shadow-md border-l-4 border-teal-400">
+                                            <h3 className="text-xl font-semibold text-white mb-2">{step.title}</h3>
+                                            <p className="text-gray-300 text-sm">{step.description}</p>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+
+                        {/* Image */}
+                        <div className="flex justify-center mt-10 lg:mt-0 lg:self-center">
+                            <Image
+                                src="/images/homepage.jpg"
+                                alt="How EternalLink Works"
+                                width={500}
+                                height={600}
+                                className="rounded-lg shadow-lg object-cover"
+                            />
+                        </div>
                     </div>
                 </motion.div>
 
                 {/* Testimonials Section */}
-                <motion.div
-                    initial={{opacity: 0, y: 50}}
-                    animate={{opacity: 1, y: 0}}
-                    transition={{delay: 1, duration: 0.5}}
-                    className="w-full max-w-4xl mb-20"
+                <motion.div {...{ className: '' } as MotionDivProps}
+                            initial={{opacity: 0, y: 50}}
+                            animate={{opacity: 1, y: 0}}
+                            transition={{delay: 1, duration: 0.5}}
+                            className="w-full max-w-4xl mb-20"
                 >
-                    <h2 className="text-3xl sm:text-4xl font-bold mb-8 text-center">What Our Users Say</h2>
+                    <h2 className={`${rajdhani.className} text-3xl sm:text-4xl font-bold mb-8 text-center`}>What Our Users Say</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <TestimonialCard
                             name="Sudheer"
@@ -228,26 +281,26 @@ export default function Home() {
                 </motion.div>
 
                 {/* Final CTA Section */}
-                <motion.div
-                    initial={{opacity: 0}}
-                    animate={{opacity: 1}}
-                    transition={{delay: 1.2, duration: 0.5}}
-                    className="text-center mb-12"
+                <motion.div {...{ className: '' } as MotionDivProps}
+                            initial={{opacity: 0}}
+                            animate={{opacity: 1}}
+                            transition={{delay: 1.2, duration: 0.5}}
+                            className="text-center mb-12"
                 >
-                    <h2 className="text-3xl sm:text-4xl font-bold mb-4">Ready to revolutionize your communication?</h2>
-                    <p className="text-xl mb-8">Join EternalLink today and experience the future of messaging.</p>
+                    <h2 className={`${rajdhani.className} text-3xl sm:text-4xl font-bold mb-4`}>Ready to revolutionize your communication?</h2>
+                    <p className={`${robotoMono.className} text-xl mb-8 text-gray-300`}>Join EternalLink today and experience the future of messaging.</p>
                     <Link href="/signup"
-                          className="group bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg hover:shadow-green-500/25 inline-flex items-center text-lg">
+                          className="group bg-teal-500 hover:bg-teal-600 text-white font-bold py-4 px-8 rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg hover:shadow-teal-500/25 inline-flex items-center text-lg">
                         Get Started Now
                         <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform"/>
                     </Link>
                 </motion.div>
             </main>
 
-            {/* Footer */}
-            <footer className="w-full bg-gray-900 py-8 border-t border-gradient-to-r from-blue-500/20 to-purple-500/20">
+            {/* Footer - Adjusted z-index */}
+            <footer className="w-full bg-gray-900 py-8 border-t border-gradient-to-r from-blue-500/20 to-purple-500/20 z-20">
                 <div className="container mx-auto px-6 flex flex-col sm:flex-row justify-between items-center">
-                    <p className="text-gray-300 mb-4 sm:mb-0">&copy; 2024 EternalLink. All rights reserved.</p>
+                    <p className="text-gray-300 mb-4 sm:mb-0">© 2025 EternalLink. All rights reserved.</p>
                     <div className="flex space-x-6">
                         <Link href="/privacy" className="text-gray-300 hover:text-blue-400 transition duration-300">Privacy Policy</Link>
                         <Link href="/terms" className="text-gray-300 hover:text-blue-400 transition duration-300">Terms of Service</Link>
@@ -257,4 +310,3 @@ export default function Home() {
         </div>
     )
 }
-
