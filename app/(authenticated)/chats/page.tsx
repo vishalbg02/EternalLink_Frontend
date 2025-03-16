@@ -2,189 +2,221 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import Link from "next/link"
 import toast from "react-hot-toast"
 import { apiRequest } from "@/utils/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { MessageSquare, Users, Plus, Search } from "lucide-react"
+import { User, Loader2, Plus } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-interface Chat {
-    id: number
-    name: string
-    isGroupChat: boolean
-    lastMessage?: string
-    lastMessageTime?: string
+interface UserPreview {
+    username: string
+    found: boolean
 }
 
 export default function Chats() {
-    const [chats, setChats] = useState<Chat[]>([])
     const [newChatEternalLink, setNewChatEternalLink] = useState("")
-    const [loading, setLoading] = useState(true)
-    const [searchTerm, setSearchTerm] = useState("")
+    const [userPreview, setUserPreview] = useState<UserPreview | null>(null)
+    const [fetchingUser, setFetchingUser] = useState(false)
+    const [requestSending, setRequestSending] = useState(false)
+    const [recentRequests, setRecentRequests] = useState<string[]>([])
 
     useEffect(() => {
-        fetchChats()
-    }, [])
+        const debounceTimer = setTimeout(() => {
+            if (newChatEternalLink.trim().length > 0) {
+                fetchUserByEternalLink(newChatEternalLink)
+            } else {
+                setUserPreview(null)
+            }
+        }, 300)
 
-    const fetchChats = async () => {
-        setLoading(true)
+        return () => clearTimeout(debounceTimer)
+    }, [newChatEternalLink])
+
+    const fetchUserByEternalLink = async (eternalLink: string) => {
+        setFetchingUser(true)
         try {
-            const response = await apiRequest("/chats", "GET")
-            setChats(response)
+            const response = await apiRequest(`/chats/users/by-eternal-link/${eternalLink}`, "GET")
+            setUserPreview({
+                username: response.username,
+                found: true
+            })
         } catch (error) {
-            console.error("Error fetching chats:", error)
-            toast.error("Failed to fetch chats")
+            console.error("Error fetching user:", error)
+            setUserPreview({
+                username: "",
+                found: false
+            })
         } finally {
-            setLoading(false)
+            setFetchingUser(false)
         }
     }
 
     const sendChatRequest = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!userPreview?.found) {
+            toast.error("Please enter a valid EternalLink")
+            return
+        }
+
+        setRequestSending(true)
         try {
             await apiRequest("/chats/request", "POST", { receiverEternalLink: newChatEternalLink })
-            toast.success("Chat request sent successfully!")
+            toast.success(`Chat request sent to ${userPreview.username}!`)
+            setRecentRequests(prev => [userPreview.username, ...prev.slice(0, 4)])
             setNewChatEternalLink("")
+            setUserPreview(null)
         } catch (error) {
             console.error("Error:", error)
             toast.error("Failed to send chat request")
+        } finally {
+            setRequestSending(false)
         }
     }
 
-    const filteredChats = chats.filter((chat) => chat.name.toLowerCase().includes(searchTerm.toLowerCase()))
-
     return (
         <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 p-8"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 md:p-8"
         >
-            <div className="max-w-6xl mx-auto">
-                <h1 className="text-4xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
-                    Your Chats
-                </h1>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-2">
-                        <Card className="bg-gray-800 border-gray-700 mb-6">
-                            <CardHeader>
-                                <CardTitle className="text-2xl text-white">Chat List</CardTitle>
-                                <CardDescription>Browse and manage your conversations</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="relative mb-4">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                                    <Input
-                                        type="text"
-                                        placeholder="Search chats..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="pl-10 bg-gray-700 border-gray-600 text-white"
-                                    />
-                                </div>
-                                {loading ? (
-                                    <div className="space-y-4">
-                                        {[1, 2, 3].map((i) => (
-                                            <div key={i} className="flex items-center space-x-4">
-                                                <Skeleton className="h-12 w-12 rounded-full" />
-                                                <div className="space-y-2 flex-1">
-                                                    <Skeleton className="h-4 w-1/4" />
-                                                    <Skeleton className="h-4 w-3/4" />
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <AnimatePresence>
-                                        {filteredChats.length > 0 ? (
-                                            <motion.div layout className="space-y-4">
-                                                {filteredChats.map((chat) => (
-                                                    <motion.div
-                                                        key={chat.id}
-                                                        layout
-                                                        initial={{ opacity: 0 }}
-                                                        animate={{ opacity: 1 }}
-                                                        exit={{ opacity: 0 }}
-                                                    >
-                                                        <Link href={`/chats/${chat.id}`}>
-                                                            <Card className="bg-gray-700 hover:bg-gray-600 transition duration-300 cursor-pointer">
-                                                                <CardContent className="p-4 flex items-center space-x-4">
-                                                                    <Avatar className="h-12 w-12">
-                                                                        <AvatarImage src={`/placeholder-avatar-${chat.id}.jpg`} />
-                                                                        <AvatarFallback>{chat.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-                                                                    </Avatar>
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <div className="flex items-center justify-between">
-                                                                            <h2 className="text-lg font-semibold text-white truncate">{chat.name}</h2>
-                                                                            <Badge variant={chat.isGroupChat ? "secondary" : "outline"}>
-                                                                                {chat.isGroupChat ? (
-                                                                                    <Users className="h-3 w-3 mr-1" />
-                                                                                ) : (
-                                                                                    <MessageSquare className="h-3 w-3 mr-1" />
-                                                                                )}
-                                                                                {chat.isGroupChat ? "Group" : "Private"}
-                                                                            </Badge>
-                                                                        </div>
-                                                                        {chat.lastMessage && (
-                                                                            <p className="text-sm text-gray-400 truncate mt-1">{chat.lastMessage}</p>
-                                                                        )}
-                                                                        {chat.lastMessageTime && (
-                                                                            <p className="text-xs text-gray-500 mt-1">{chat.lastMessageTime}</p>
-                                                                        )}
-                                                                    </div>
-                                                                </CardContent>
-                                                            </Card>
-                                                        </Link>
-                                                    </motion.div>
-                                                ))}
-                                            </motion.div>
-                                        ) : (
-                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-8">
-                                                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                                                <h3 className="text-xl font-semibold text-white mb-2">No chats found</h3>
-                                                <p className="text-gray-400">
-                                                    {searchTerm ? "Try a different search term" : "Start a new conversation to get chatting!"}
-                                                </p>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-                    <div>
-                        <Card className="bg-gray-800 border-gray-700 sticky top-8">
+            <div className="max-w-7xl mx-auto">
+                <div className="flex flex-col items-center justify-center py-10 md:py-16">
+                    <motion.h1
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.2, duration: 0.8 }}
+                        className="text-4xl md:text-5xl font-bold mb-4 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500"
+                    >
+                        Connect with Others
+                    </motion.h1>
+                    <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.4, duration: 0.8 }}
+                        className="text-gray-300 text-center max-w-2xl mb-12"
+                    >
+                        Enter an EternalLink to start a new conversation with friends or colleagues.
+                    </motion.p>
+
+                    <div className="w-full max-w-xl mx-auto">
+                        <Card className="bg-gray-800/80 border-gray-700 backdrop-blur-sm shadow-xl">
                             <CardHeader>
                                 <CardTitle className="text-2xl text-white flex items-center">
                                     <Plus className="h-6 w-6 mr-2 text-purple-400" />
                                     Start a New Chat
                                 </CardTitle>
-                                <CardDescription>Enter an EternalLink to send a chat request</CardDescription>
+                                <CardDescription className="text-gray-300">
+                                    Enter an EternalLink to send a chat request
+                                </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <form onSubmit={sendChatRequest} className="space-y-4">
-                                    <Input
-                                        type="text"
-                                        value={newChatEternalLink}
-                                        onChange={(e) => setNewChatEternalLink(e.target.value)}
-                                        placeholder="Enter EternalLink"
-                                        className="bg-gray-700 border-gray-600 text-white"
-                                    />
-                                    <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700">
-                                        Send Request
-                                    </Button>
+                                <form onSubmit={sendChatRequest} className="space-y-5">
+                                    <div className="space-y-3">
+                                        <div className="relative">
+                                            <Input
+                                                type="text"
+                                                value={newChatEternalLink}
+                                                onChange={(e) => setNewChatEternalLink(e.target.value)}
+                                                placeholder="Enter EternalLink"
+                                                className="bg-gray-700/80 border-gray-600 text-white pr-10 h-12 text-lg"
+                                                disabled={fetchingUser || requestSending}
+                                            />
+                                            {fetchingUser && (
+                                                <Loader2 className="w-5 h-5 animate-spin absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                            )}
+                                        </div>
+
+                                        <AnimatePresence>
+                                            {userPreview && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, height: 0 }}
+                                                    animate={{ opacity: 1, height: 'auto' }}
+                                                    exit={{ opacity: 0, height: 0 }}
+                                                    transition={{ duration: 0.3 }}
+                                                    className="overflow-hidden"
+                                                >
+                                                    {userPreview.found ? (
+                                                        <div className="flex items-center p-3 rounded-md bg-gray-700/80">
+                                                            <div className="bg-green-500/20 p-2 rounded-full mr-3">
+                                                                <User className="h-5 w-5 text-green-400" />
+                                                            </div>
+                                                            <span className="text-white">User found: <span className="font-medium text-green-400">{userPreview.username}</span></span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center p-3 rounded-md bg-gray-700/80">
+                                                            <div className="bg-red-500/20 p-2 rounded-full mr-3">
+                                                                <User className="h-5 w-5 text-red-400" />
+                                                            </div>
+                                                            <span className="text-white">No user found with this EternalLink</span>
+                                                        </div>
+                                                    )}
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div>
+                                                    <Button
+                                                        type="submit"
+                                                        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 h-12 text-lg font-medium rounded-md transition-all duration-300 ease-in-out transform hover:scale-[1.02] active:scale-[0.98]"
+                                                        disabled={fetchingUser || requestSending || !userPreview?.found}
+                                                    >
+                                                        {requestSending ? (
+                                                            <>
+                                                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                                                Sending...
+                                                            </>
+                                                        ) : (
+                                                            "Send Chat Request"
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent
+                                                className="bg-gray-900 text-white border-gray-700"
+                                                hidden={!(!userPreview?.found && newChatEternalLink.length > 0)}
+                                            >
+                                                Please enter a valid EternalLink
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 </form>
+
+                                {recentRequests.length > 0 && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="mt-6 pt-6 border-t border-gray-700/50"
+                                    >
+                                        <h3 className="text-sm font-medium text-gray-400 mb-3">Recent Requests</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {recentRequests.map((username, index) => (
+                                                <span key={index} className="px-3 py-1 bg-gray-700/50 rounded-full text-sm text-gray-300">
+                                                    {username}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                )}
                             </CardContent>
                         </Card>
+
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.6, duration: 1 }}
+                            className="mt-8 text-center text-gray-400 text-sm"
+                        >
+                        </motion.div>
                     </div>
                 </div>
             </div>
         </motion.div>
     )
 }
-

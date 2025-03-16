@@ -102,6 +102,7 @@ export default function ChatPage() {
     const [arLocation, setARLocation] = useState({ latitude: 0, longitude: 0, altitude: 0 })
     const [loading, setLoading] = useState(true)
     const [sending, setSending] = useState(false)
+    const [chatUsers, setChatUsers] = useState<string[]>([]);
     const [file, setFile] = useState<File | null>(null)
     const [filePreview, setFilePreview] = useState<FilePreview | null>(null)
     const [generatedImagePreview, setGeneratedImagePreview] = useState<FilePreview | null>(null)
@@ -263,43 +264,58 @@ export default function ChatPage() {
 
     const fetchMessages = async () => {
         try {
-            const response = await apiRequest(`/messages/chat/${id}`, "GET")
-            if (Array.isArray(response)) {
-                const prevLength = messages.length
+            // Fetch messages
+            const messageResponse = await apiRequest(`/messages/chat/${id}`, "GET");
+            if (Array.isArray(messageResponse)) {
+                const prevLength = messages.length;
                 setMessages((prevMessages) => {
-                    const hasChanges = response.some((newMsg) => {
-                        const existingMsg = prevMessages.find((msg) => msg.id === newMsg.id)
-                        return !existingMsg || JSON.stringify(existingMsg) !== JSON.stringify(newMsg)
-                    })
+                    const hasChanges = messageResponse.some((newMsg) => {
+                        const existingMsg = prevMessages.find((msg) => msg.id === newMsg.id);
+                        return !existingMsg || JSON.stringify(existingMsg) !== JSON.stringify(newMsg);
+                    });
 
-                    if (!hasChanges) return prevMessages
+                    if (!hasChanges) return prevMessages;
 
-                    const existingMessagesMap = new Map(prevMessages.map((m) => [m.id, m]))
-                    const updatedMessages = response
+                    const existingMessagesMap = new Map(prevMessages.map((m) => [m.id, m]));
+                    const updatedMessages = messageResponse
                         .map((newMessage) => {
-                            const existingMessage = existingMessagesMap.get(newMessage.id)
-                            return existingMessage ? { ...existingMessage, ...newMessage } : newMessage
+                            const existingMessage = existingMessagesMap.get(newMessage.id);
+                            return existingMessage ? { ...existingMessage, ...newMessage } : newMessage;
                         })
-                        .filter((msg) => !(msg.isOneTimeView && msg.status === "SEEN"))
-                    return updatedMessages
-                })
+                        .filter((msg) => !(msg.isOneTimeView && msg.status === "SEEN"));
+                    return updatedMessages;
+                });
 
-                const chatResponse = await apiRequest(`/chats`, "GET")
-                const currentChat = chatResponse.find((chat: any) => chat.id === Number(id))
-                setChatExpiration(currentChat?.defaultExpirationSeconds || null)
-                setConnectedUser(currentChat?.participants?.find((p: any) => p.username !== currentUser)?.username || "User2")
+                // Fetch chat details
+                const chatResponse = await apiRequest(`/chats`, "GET");
+                const currentChat = chatResponse.find((chat: any) => chat.id === Number(id));
+                setChatExpiration(currentChat?.defaultExpirationSeconds || null);
 
-                if (response.length > prevLength && messagesEndRef.current) {
-                    messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+                // Fetch usernames using the new endpoint
+                const usersResponse = await apiRequest(`/messages/chat/${id}/users`, "GET");
+                if (usersResponse.success && Array.isArray(usersResponse.data)) {
+                    const usernames = usersResponse.data;
+                    setChatUsers(usernames);
+
+                    // Assuming the first user is the current user and the second is the connected user
+                    // Adjust this logic based on how you identify the current user
+                    setCurrentUser(usernames[0] || "User1"); // Replace with actual logic to identify the current user
+                    setConnectedUser(usernames[1] || "User2"); // The other user in the chat
+                } else {
+                    throw new Error("Failed to fetch chat users");
+                }
+
+                if (messageResponse.length > prevLength && messagesEndRef.current) {
+                    messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
                 }
             }
-            setLoading(false)
+            setLoading(false);
         } catch (error) {
-            console.error("Error fetching messages:", error)
-            toast.error("Failed to load messages")
-            setLoading(false)
+            console.error("Error fetching messages or users:", error);
+            toast.error("Failed to load chat data");
+            setLoading(false);
         }
-    }
+    };
 
     useEffect(() => {
         fetchMessages()
