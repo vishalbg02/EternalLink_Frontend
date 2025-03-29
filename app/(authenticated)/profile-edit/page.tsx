@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User, Upload, X, ArrowLeft, Camera, Save, Loader2 } from "lucide-react"
 import toast from "react-hot-toast"
 import { apiRequest } from "@/utils/api"
 import dynamic from 'next/dynamic'

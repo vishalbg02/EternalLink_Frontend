@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Shield, User, Mail, Lock, AlertCircle, ArrowRight, CheckCircle2, ArrowLeft } from "lucide-react"
@@ -16,7 +15,6 @@ export default function Signup() {
     const [error, setError] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [showOtpVerification, setShowOtpVerification] = useState(false)
-    const router = useRouter()
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -176,4 +174,3 @@ export default function Signup() {
         </div>
     )
 }
-

@@ -16,12 +16,6 @@ interface Message {
     timestamp: Date
 }
 
-interface ApiResponse {
-    success: boolean
-    message: string
-    data: string
-}
-
 interface ChatbotRequestBody {
     question: string
 }

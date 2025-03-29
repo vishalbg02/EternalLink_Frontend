@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -34,6 +34,16 @@ export default function Chat() {
     const [arLocation, setARLocation] = useState({ latitude: 0, longitude: 0, altitude: 0 })
     const [chatStatus, setChatStatus] = useState<'pending' | 'approved' | 'not_found'>('pending')
 
+    const fetchMessages = useCallback(async () => {
+        try {
+            const messagesData = await apiRequest(`/messages/chat/${id}`, 'GET')
+            setMessages(messagesData)
+        } catch (error) {
+            console.error('Error:', error)
+            toast.error('Failed to fetch messages')
+        }
+    }, [id])
+
     useEffect(() => {
         const fetchChatStatus = async () => {
             try {
@@ -50,17 +60,7 @@ export default function Chat() {
         }
 
         fetchChatStatus()
-    }, [id])
-
-    const fetchMessages = async () => {
-        try {
-            const messagesData = await apiRequest(`/messages/chat/${id}`, 'GET')
-            setMessages(messagesData)
-        } catch (error) {
-            console.error('Error:', error)
-            toast.error('Failed to fetch messages')
-        }
-    }
+    }, [id, fetchMessages])
 
     const sendMessage = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -112,7 +112,7 @@ export default function Chat() {
                 <Card className="p-6 max-w-md">
                     <CardContent>
                         <h2 className="text-2xl font-bold mb-4">Chat Request Pending</h2>
-                        <p className="text-gray-300 mb-4">This chat is waiting for approval. Once approved, you'll be able to start messaging.</p>
+                        <p className="text-gray-300 mb-4">This chat is waiting for approval. Once approved, you&apos;ll be able to start messaging.</p>
                         <Button onClick={() => router.push('/dashboard')} className="w-full">
                             Return to Dashboard
                         </Button>
@@ -128,7 +128,7 @@ export default function Chat() {
                 <Card className="p-6 max-w-md">
                     <CardContent>
                         <h2 className="text-2xl font-bold mb-4">Chat Not Found</h2>
-                        <p className="text-gray-300 mb-4">The requested chat does not exist or you don't have access to it.</p>
+                        <p className="text-gray-300 mb-4">The requested chat does not exist or you don&apos;t have access to it.</p>
                         <Button onClick={() => router.push('/dashboard')} className="w-full">
                             Return to Dashboard
                         </Button>
@@ -202,4 +202,3 @@ export default function Chat() {
         </motion.div>
     )
 }
-

@@ -66,7 +66,7 @@ export default function Contact() {
                     Contact Us
                 </h1>
                 <p className={`${robotoMono.className} text-xl mb-8 text-center text-gray-300 tracking-wide leading-relaxed drop-shadow-[0_2px_4px_rgba(0,0,0,0.2)]`}>
-                    Have questions or feedback? We'd love to hear from you!
+                    Have questions or feedback? We would love to hear from you!
                 </p>
                 <motion.div
                     className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg"

@@ -29,7 +29,7 @@ class ErrorBoundary extends Component<Props, State> {
                 <div className="flex items-center justify-center min-h-screen bg-gray-100">
                     <div className="p-8 bg-white shadow-lg rounded-lg">
                         <h1 className="text-2xl font-bold text-red-600 mb-4">Oops! Something went wrong.</h1>
-                        <p className="text-gray-700 mb-4">We're experiencing some technical difficulties. Our team has been notified and is working on a fix.</p>
+                        <p className="text-gray-700 mb-4">We&apos;re experiencing some technical difficulties. Our team has been notified and is working on a fix.</p>
                         <p className="text-gray-700 mb-4">Please try again later or contact support if the problem persists.</p>
                         <button
                             onClick={() => this.setState({ hasError: false })}

@@ -93,7 +93,7 @@ export default function About() {
                         transition={{ delay: 0.4, duration: 0.5 }}
                     >
                         <p className={`${robotoMono.className} text-lg mb-6 text-gray-300 tracking-wide leading-relaxed drop-shadow-[0_2px_4px_rgba(0,0,0,0.2)]`}>
-                            We believe that everyone deserves access to secure, private communication tools that are both powerful and easy to use. That's why we've developed EternalLink with cutting-edge technologies like quantum-resistant encryption, augmented reality messaging, and AI-powered assistance.
+                            We believe that everyone deserves access to secure, private communication tools that are both powerful and easy to use. Thats why we have developed EternalLink with cutting-edge technologies like quantum-resistant encryption, augmented reality messaging, and AI-powered assistance.
                         </p>
                     </motion.div>
                 </div>
@@ -106,7 +106,7 @@ export default function About() {
                 >
                     <h2 className={`${rajdhani.className} text-3xl font-bold mb-6 text-center`}>Our Mission</h2>
                     <p className={`${robotoMono.className} text-lg mb-8 text-center text-gray-300 tracking-wide leading-relaxed drop-shadow-[0_2px_4px_rgba(0,0,0,0.2)]`}>
-                        To empower individuals and organizations with secure, innovative communication tools that protect privacy, foster connection, and push the boundaries of what's possible in digital interaction.
+                        To empower individuals and organizations with secure, innovative communication tools that protect privacy, foster connection, and push the boundaries of whats possible in digital interaction.
                     </p>
                 </motion.div>
                 {/* Our Values Container */}

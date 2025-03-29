@@ -6,7 +6,6 @@ import { motion } from 'framer-motion'
 import { Shield, Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiRequest } from '@/utils/api'
-import ForgotPassword from './forgot-password/page'; // Correct import
 
 
 export default function Login() {
@@ -144,9 +143,9 @@ export default function Login() {
                         </Link>
 
                         <div className="text-center">
-                            <a href="/forgot-password" className="text-sm text-gray-400 hover:text-blue-400 transition-colors">
+                            <Link href="/forgot-password" className="text-sm text-gray-400 hover:text-blue-400 transition-colors">
                                 Forgot your password?
-                            </a>
+                            </Link>
                         </div>
                     </div>
                 </div>

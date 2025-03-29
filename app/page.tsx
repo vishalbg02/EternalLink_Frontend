@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image, { StaticImageData } from 'next/image'
-import { motion, useAnimation, AnimatePresence, MotionProps } from 'framer-motion'
+import { motion, useAnimation, MotionProps } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import { ArrowRight, Lock, Zap, Globe, Users, Smartphone, Brain } from 'lucide-react'
 
@@ -76,7 +76,7 @@ const TestimonialCard: React.FC<TestimonialCardProps> = ({ name, role, quote, im
 )
 
 export default function Home() {
-    const [currentFeature, setCurrentFeature] = useState(0)
+    const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0)
     const features = [
         { icon: <Lock className="w-12 h-12 mb-4 text-blue-400" />, title: 'Quantum-Resistant Encryption', description: 'Future-proof your communications with our advanced encryption technology, ensuring your messages remain secure even in the face of quantum computing advancements.' },
         { icon: <Zap className="w-12 h-12 mb-4 text-yellow-400" />, title: 'Lightning-Fast Messaging', description: 'Experience real-time messaging with unparalleled speed. Our optimized infrastructure ensures your messages are delivered instantly, no matter where you are in the world.' },
@@ -88,10 +88,10 @@ export default function Home() {
 
     useEffect(() => {
         const interval = setInterval(() => {
-            setCurrentFeature((prev) => (prev + 1) % features.length)
+            setCurrentFeatureIndex((prev) => (prev + 1) % features.length)
         }, 5000)
         return () => clearInterval(interval)
-    }, [])
+    }, [features.length])
 
     const controls = useAnimation()
     const [ref, inView] = useInView()
